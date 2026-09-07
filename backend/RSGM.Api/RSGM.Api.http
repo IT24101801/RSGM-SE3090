@@ -1,0 +1,6 @@
+@RSGM.Api_HostAddress = http://localhost:5248
+
+GET {{RSGM.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
