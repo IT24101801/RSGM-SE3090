@@ -6,11 +6,41 @@ using RSGM.Api.Models.Entities;
 namespace RSGM.Api.Data;
 
 public class ApplicationDbContext
-    : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>
+    : IdentityDbContext<
+        ApplicationUser,
+        IdentityRole<Guid>,
+        Guid>
 {
     public ApplicationDbContext(
         DbContextOptions<ApplicationDbContext> options)
         : base(options)
     {
+    }
+
+    public DbSet<Skill> Skills => Set<Skill>();
+
+    protected override void OnModelCreating(
+        ModelBuilder builder)
+    {
+        base.OnModelCreating(builder);
+
+        builder.Entity<Skill>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Name)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(x => x.NormalizedName)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(x => x.Description)
+                .HasMaxLength(500);
+
+            entity.HasIndex(x => x.NormalizedName)
+                .IsUnique();
+        });
     }
 }
