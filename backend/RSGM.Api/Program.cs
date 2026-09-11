@@ -11,11 +11,28 @@ using RSGM.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 
+
+
 // ======================================================
 // 1. CONTROLLERS
 // ======================================================
 
 builder.Services.AddControllers();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(
+        "ReactFrontend",
+        policy =>
+        {
+            policy
+                .WithOrigins(
+                    "http://localhost:5173"
+                )
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
+});
 
 
 // ======================================================
@@ -222,6 +239,8 @@ app.UseHttpsRedirection();
 
 // IMPORTANT:
 // Authentication must come BEFORE Authorization.
+
+app.UseCors("ReactFrontend");
 
 app.UseAuthentication();
 
