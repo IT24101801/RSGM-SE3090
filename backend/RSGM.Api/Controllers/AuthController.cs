@@ -4,6 +4,8 @@ using RSGM.Api.Common;
 using RSGM.Api.Models.DTOs.Auth;
 using RSGM.Api.Models.Entities;
 using RSGM.Api.Services;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace RSGM.Api.Controllers;
 
@@ -152,6 +154,31 @@ public class AuthController : ControllerBase
             Roles = roles,
             ExpiresAt =
                 DateTime.UtcNow.AddMinutes(expiryMinutes)
+        });
+    }
+
+        [Authorize]
+        [HttpGet("me")]
+        public IActionResult GetCurrentUser()
+        {
+            return Ok(new
+        {
+        userId =
+            User.FindFirstValue(
+                ClaimTypes.NameIdentifier),
+
+        email =
+            User.FindFirstValue(
+                ClaimTypes.Email),
+
+        name =
+            User.FindFirstValue(
+                ClaimTypes.Name),
+
+        roles =
+            User.FindAll(
+                ClaimTypes.Role)
+                .Select(x => x.Value)
         });
     }
 }

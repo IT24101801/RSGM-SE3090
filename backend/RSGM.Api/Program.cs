@@ -81,6 +81,9 @@ builder.Services.AddScoped<TokenService>();
 
 var app = builder.Build();
 
+await IdentitySeeder.SeedRolesAsync(
+    app.Services);
+
 // Swagger
 if (app.Environment.IsDevelopment())
 {
@@ -96,5 +99,8 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.MapHealthChecks("/health");
+
+await IdentitySeeder.SeedRolesAsync(
+    app.Services);
 
 app.Run();
