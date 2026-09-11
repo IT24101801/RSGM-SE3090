@@ -79,6 +79,8 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<TokenService>();
 
+builder.Services.AddScoped<SkillService>();
+
 var app = builder.Build();
 
 await IdentitySeeder.SeedRolesAsync(
