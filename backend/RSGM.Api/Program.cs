@@ -1,31 +1,29 @@
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using RSGM.Api.Data;
-using RSGM.Api.Models.Entities;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using RSGM.Api.Data;
+using RSGM.Api.Models.Entities;
 using RSGM.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Controllers
 builder.Services.AddControllers();
 
-// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Database
 var connectionString =
-    builder.Configuration.GetConnectionString("DefaultConnection")
+    builder.Configuration
+        .GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException(
         "DefaultConnection is not configured.");
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
+builder.Services.AddDbContext<ApplicationDbContext>(
+    options =>
+        options.UseNpgsql(connectionString));
 
-// ASP.NET Identity
 builder.Services
     .AddIdentityCore<ApplicationUser>(options =>
     {
@@ -36,12 +34,8 @@ builder.Services
         options.Password.RequireNonAlphanumeric = false;
     })
     .AddRoles<IdentityRole<Guid>>()
-    .AddEntityFrameworkStores<ApplicationDbContext>();
-
-// Health checks
-builder.Services
-    .AddHealthChecks()
-    .AddDbContextCheck<ApplicationDbContext>();
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
 
 var jwtKey =
     builder.Configuration["Jwt:Key"]
@@ -62,14 +56,17 @@ builder.Services
                 ValidateIssuerSigningKey = true,
 
                 ValidIssuer =
-                    builder.Configuration["Jwt:Issuer"],
+                    builder.Configuration[
+                        "Jwt:Issuer"],
 
                 ValidAudience =
-                    builder.Configuration["Jwt:Audience"],
+                    builder.Configuration[
+                        "Jwt:Audience"],
 
                 IssuerSigningKey =
                     new SymmetricSecurityKey(
-                        Encoding.UTF8.GetBytes(jwtKey)),
+                        Encoding.UTF8.GetBytes(
+                            jwtKey)),
 
                 ClockSkew = TimeSpan.Zero
             };
@@ -78,15 +75,14 @@ builder.Services
 builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<TokenService>();
-
 builder.Services.AddScoped<SkillService>();
+
+builder.Services
+    .AddHealthChecks()
+    .AddDbContextCheck<ApplicationDbContext>();
 
 var app = builder.Build();
 
-await IdentitySeeder.SeedRolesAsync(
-    app.Services);
-
-// Swagger
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
