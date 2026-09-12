@@ -273,7 +273,9 @@ app.MapHealthChecks("/health");
 // HiringPanelist
 // SystemAdmin
 
-await IdentitySeeder.SeedRolesAsync(app.Services);
+await IdentitySeeder.SeedAsync(
+    app.Services,
+    builder.Configuration);
 
 
 // ======================================================
