@@ -44,17 +44,21 @@ public class JobSeekerSkillsController : ControllerBase
             return Unauthorized();
         }
 
-        var added = await _skillService.AddAsync(userId.Value, request);
+        var (result, skill) = await _skillService.AddAsync(userId.Value, request);
 
-        if (added == null)
+        return result switch
         {
-            return Conflict(new
+            AddSkillResult.Added => Ok(skill),
+            AddSkillResult.AlreadyAdded => Conflict(new
             {
                 message = "This skill is already on your profile."
-            });
-        }
-
-        return Ok(added);
+            }),
+            AddSkillResult.SkillNotFound => NotFound(new
+            {
+                message = "This skill doesn't exist in the catalog."
+            }),
+            _ => BadRequest()
+        };
     }
 
     [HttpDelete("{skillId:guid}")]
