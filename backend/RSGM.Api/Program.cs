@@ -193,6 +193,8 @@ builder.Services.AddScoped<SkillService>();
 
 builder.Services.AddScoped<JobSeekerProfileService>();
 
+builder.Services.AddScoped<JobSeekerSkillService>();
+
 
 // ======================================================
 // 8. HEALTH CHECKS
