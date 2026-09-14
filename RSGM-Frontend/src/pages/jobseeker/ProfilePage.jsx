@@ -5,6 +5,7 @@ import {
 
 import { getProfile, updateProfile } from "../../services/jobSeekerProfileService";
 import { addMySkill, getMySkills, removeMySkill } from "../../services/jobSeekerSkillService";
+import { getSkills } from "../../services/skillService";
 
 // TODO: replace with GET/POST /api/jobseeker/cv
 const INITIAL_CV = { fileName: "Aisha_Rahman_CV.pdf", uploadedAt: "2026-08-28" };
@@ -20,7 +21,8 @@ function ProfilePage() {
   const [skills, setSkills] = useState([]);
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [skillsError, setSkillsError] = useState("");
-  const [newSkill, setNewSkill] = useState("");
+  const [catalog, setCatalog] = useState([]);
+  const [selectedSkillId, setSelectedSkillId] = useState("");
   const [isAddingSkill, setIsAddingSkill] = useState(false);
 
   const [cv, setCv] = useState(INITIAL_CV);
@@ -30,9 +32,11 @@ function ProfilePage() {
   useEffect(() => {
     let ignore = false;
 
-    getMySkills()
-      .then((data) => {
-        if (!ignore) setSkills(data);
+    Promise.all([getMySkills(), getSkills()])
+      .then(([mySkills, allSkills]) => {
+        if (ignore) return;
+        setSkills(mySkills);
+        setCatalog(allSkills.filter((s) => s.isActive));
       })
       .catch((err) => {
         if (!ignore) setSkillsError(err.message || "Unable to load skills.");
@@ -102,17 +106,19 @@ function ProfilePage() {
     }
   };
 
+  const addedSkillIds = new Set(skills.map((s) => s.skillId));
+  const availableCatalog = catalog.filter((s) => !addedSkillIds.has(s.id));
+
   const addSkill = async () => {
-    const trimmed = newSkill.trim();
-    if (!trimmed) return;
+    if (!selectedSkillId) return;
 
     setSkillsError("");
     setIsAddingSkill(true);
 
     try {
-      const added = await addMySkill(trimmed);
+      const added = await addMySkill(selectedSkillId);
       setSkills((prev) => [...prev, added].sort((a, b) => a.name.localeCompare(b.name)));
-      setNewSkill("");
+      setSelectedSkillId("");
     } catch (err) {
       setSkillsError(err.message || "Unable to add skill.");
     } finally {
@@ -319,22 +325,31 @@ function ProfilePage() {
             )}
 
             <div className="mt-4 flex items-center gap-2">
-              <input
-                value={newSkill}
-                onChange={(e) => setNewSkill(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addSkill()}
-                placeholder="e.g. Node.js"
+              <select
+                value={selectedSkillId}
+                onChange={(e) => setSelectedSkillId(e.target.value)}
                 className="h-11 w-56 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
-              />
+              >
+                <option value="">Select a skill...</option>
+                {availableCatalog.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
               <button
                 onClick={addSkill}
-                disabled={isAddingSkill}
+                disabled={isAddingSkill || !selectedSkillId}
                 className="h-11 px-4 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center gap-1.5 hover:bg-neutral-800 active:scale-[0.99] transition disabled:opacity-60"
               >
                 {isAddingSkill ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                 Add
               </button>
             </div>
+
+            {availableCatalog.length === 0 && !skillsLoading && (
+              <p className="mt-2 text-xs text-neutral-400">
+                You've added every skill currently in the catalog.
+              </p>
+            )}
           </>
         )}
       </div>
