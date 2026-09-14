@@ -5,6 +5,13 @@ using RSGM.Api.Models.Entities;
 
 namespace RSGM.Api.Services;
 
+public enum AddSkillResult
+{
+    Added,
+    SkillNotFound,
+    AlreadyAdded
+}
+
 public class JobSeekerSkillService
 {
     private readonly ApplicationDbContext _context;
@@ -28,27 +35,19 @@ public class JobSeekerSkillService
             .ToListAsync();
     }
 
-    // Adds a skill to the job seeker's profile. If the skill name doesn't
-    // already exist in the shared taxonomy, it's created (matching the
-    // admin-managed Skill table used elsewhere in the app).
-    public async Task<JobSeekerSkillResponse?> AddAsync(
+    // Links an existing, active skill from the admin-managed taxonomy to the
+    // job seeker's profile. Job seekers cannot create new skills themselves;
+    // that stays a SystemAdmin-only capability (see AdminSkillsController).
+    public async Task<(AddSkillResult Result, JobSeekerSkillResponse? Skill)> AddAsync(
         Guid userId,
         AddJobSeekerSkillRequest request)
     {
-        var normalizedName = request.Name.Trim().ToUpperInvariant();
-
         var skill = await _context.Skills
-            .FirstOrDefaultAsync(x => x.NormalizedName == normalizedName);
+            .FirstOrDefaultAsync(x => x.Id == request.SkillId && x.IsActive);
 
         if (skill == null)
         {
-            skill = new Skill
-            {
-                Name = request.Name.Trim(),
-                NormalizedName = normalizedName
-            };
-
-            _context.Skills.Add(skill);
+            return (AddSkillResult.SkillNotFound, null);
         }
 
         var alreadyLinked = await _context.JobSeekerSkills
@@ -56,7 +55,7 @@ public class JobSeekerSkillService
 
         if (alreadyLinked)
         {
-            return null;
+            return (AddSkillResult.AlreadyAdded, null);
         }
 
         var link = new JobSeekerSkill
@@ -69,11 +68,11 @@ public class JobSeekerSkillService
 
         await _context.SaveChangesAsync();
 
-        return new JobSeekerSkillResponse
+        return (AddSkillResult.Added, new JobSeekerSkillResponse
         {
             SkillId = skill.Id,
             Name = skill.Name
-        };
+        });
     }
 
     public async Task<bool> RemoveAsync(Guid userId, Guid skillId)
