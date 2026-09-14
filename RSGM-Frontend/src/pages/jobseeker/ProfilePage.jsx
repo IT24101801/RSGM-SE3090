@@ -1,55 +1,134 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  CircleCheck, FileText, Loader2, Plus, Sparkles, Upload, X,
+  AlertCircle, CircleCheck, FileText, Loader2, Plus, Sparkles, Upload, X,
 } from "lucide-react";
 
-// TODO: replace with GET/PUT /api/jobseeker/profile
-const INITIAL_PROFILE = {
-  fullName: "Aisha Rahman",
-  headline: "Frontend Engineer",
-  location: "Singapore",
-  bio: "Frontend engineer with 4 years of experience building React applications.",
-};
-
-// TODO: replace with GET/POST/DELETE /api/jobseeker/skills
-const INITIAL_SKILLS = ["React", "TypeScript", "Tailwind CSS", "JavaScript"];
+import { getProfile, updateProfile } from "../../services/jobSeekerProfileService";
+import { addMySkill, getMySkills, removeMySkill } from "../../services/jobSeekerSkillService";
 
 // TODO: replace with GET/POST /api/jobseeker/cv
 const INITIAL_CV = { fileName: "Aisha_Rahman_CV.pdf", uploadedAt: "2026-08-28" };
 
 function ProfilePage() {
-  const [profile, setProfile] = useState(INITIAL_PROFILE);
+  const [profile, setProfile] = useState({ fullName: "", headline: "", location: "", bio: "" });
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const [skills, setSkills] = useState(INITIAL_SKILLS);
+  const [skills, setSkills] = useState([]);
+  const [skillsLoading, setSkillsLoading] = useState(true);
+  const [skillsError, setSkillsError] = useState("");
   const [newSkill, setNewSkill] = useState("");
+  const [isAddingSkill, setIsAddingSkill] = useState(false);
 
   const [cv, setCv] = useState(INITIAL_CV);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    let ignore = false;
+
+    getMySkills()
+      .then((data) => {
+        if (!ignore) setSkills(data);
+      })
+      .catch((err) => {
+        if (!ignore) setSkillsError(err.message || "Unable to load skills.");
+      })
+      .finally(() => {
+        if (!ignore) setSkillsLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+
+    getProfile()
+      .then((data) => {
+        if (ignore) return;
+        setProfile({
+          fullName: data.fullName ?? "",
+          headline: data.headline ?? "",
+          location: data.location ?? "",
+          bio: data.bio ?? "",
+        });
+      })
+      .catch((err) => {
+        if (!ignore) setLoadError(err.message || "Unable to load profile.");
+      })
+      .finally(() => {
+        if (!ignore) setIsLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const updateField = (key, value) => {
     setProfile((prev) => ({ ...prev, [key]: value }));
     setSaved(false);
   };
 
-  const handleSaveProfile = () => {
-    // TODO: PUT /api/jobseeker/profile
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  const handleSaveProfile = async () => {
+    setSaveError("");
+    setIsSaving(true);
+
+    try {
+      const updated = await updateProfile({
+        fullName: profile.fullName,
+        headline: profile.headline,
+        location: profile.location,
+        bio: profile.bio,
+      });
+      setProfile({
+        fullName: updated.fullName ?? "",
+        headline: updated.headline ?? "",
+        location: updated.location ?? "",
+        bio: updated.bio ?? "",
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      setSaveError(err.message || "Unable to save profile.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const addSkill = () => {
+  const addSkill = async () => {
     const trimmed = newSkill.trim();
-    if (!trimmed || skills.includes(trimmed)) return;
-    // TODO: POST /api/jobseeker/skills
-    setSkills((prev) => [...prev, trimmed]);
-    setNewSkill("");
+    if (!trimmed) return;
+
+    setSkillsError("");
+    setIsAddingSkill(true);
+
+    try {
+      const added = await addMySkill(trimmed);
+      setSkills((prev) => [...prev, added].sort((a, b) => a.name.localeCompare(b.name)));
+      setNewSkill("");
+    } catch (err) {
+      setSkillsError(err.message || "Unable to add skill.");
+    } finally {
+      setIsAddingSkill(false);
+    }
   };
 
-  const removeSkill = (skill) => {
-    // TODO: DELETE /api/jobseeker/skills/{skill}
-    setSkills((prev) => prev.filter((s) => s !== skill));
+  const removeSkill = async (skillId) => {
+    setSkillsError("");
+
+    try {
+      await removeMySkill(skillId);
+      setSkills((prev) => prev.filter((s) => s.skillId !== skillId));
+    } catch (err) {
+      setSkillsError(err.message || "Unable to remove skill.");
+    }
   };
 
   const handleFileSelect = (e) => {
@@ -81,57 +160,80 @@ function ProfilePage() {
       <div className="mt-8 rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30 p-6 max-w-2xl">
         <h2 className="text-lg font-semibold tracking-tight">Personal details</h2>
 
-        <div className="mt-5 space-y-4">
-          <Field label="Full name">
-            <input
-              value={profile.fullName}
-              onChange={(e) => updateField("fullName", e.target.value)}
-              className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
-            />
-          </Field>
+        {isLoading ? (
+          <div className="mt-6 flex items-center gap-2 text-sm text-neutral-400">
+            <Loader2 size={16} className="animate-spin" />
+            Loading profile...
+          </div>
+        ) : loadError ? (
+          <div className="mt-5 flex items-start gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
+            <AlertCircle size={17} className="mt-0.5 shrink-0" />
+            <span>{loadError}</span>
+          </div>
+        ) : (
+          <>
+            <div className="mt-5 space-y-4">
+              <Field label="Full name">
+                <input
+                  value={profile.fullName}
+                  onChange={(e) => updateField("fullName", e.target.value)}
+                  className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+                />
+              </Field>
 
-          <Field label="Headline">
-            <input
-              value={profile.headline}
-              onChange={(e) => updateField("headline", e.target.value)}
-              placeholder="e.g. Frontend Engineer"
-              className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
-            />
-          </Field>
+              <Field label="Headline">
+                <input
+                  value={profile.headline}
+                  onChange={(e) => updateField("headline", e.target.value)}
+                  placeholder="e.g. Frontend Engineer"
+                  className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+                />
+              </Field>
 
-          <Field label="Location">
-            <input
-              value={profile.location}
-              onChange={(e) => updateField("location", e.target.value)}
-              className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
-            />
-          </Field>
+              <Field label="Location">
+                <input
+                  value={profile.location}
+                  onChange={(e) => updateField("location", e.target.value)}
+                  className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+                />
+              </Field>
 
-          <Field label="About you">
-            <textarea
-              value={profile.bio}
-              onChange={(e) => updateField("bio", e.target.value)}
-              rows={3}
-              className="w-full rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 py-3 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition resize-none"
-            />
-          </Field>
-        </div>
+              <Field label="About you">
+                <textarea
+                  value={profile.bio}
+                  onChange={(e) => updateField("bio", e.target.value)}
+                  rows={3}
+                  className="w-full rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 py-3 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition resize-none"
+                />
+              </Field>
+            </div>
 
-        <div className="mt-6 flex items-center gap-3">
-          <button
-            onClick={handleSaveProfile}
-            className="h-11 px-5 rounded-xl bg-neutral-900 text-white text-sm font-semibold hover:bg-neutral-800 active:scale-[0.99] transition"
-          >
-            Save changes
-          </button>
+            {saveError && (
+              <div className="mt-4 flex items-start gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
+                <AlertCircle size={17} className="mt-0.5 shrink-0" />
+                <span>{saveError}</span>
+              </div>
+            )}
 
-          {saved && (
-            <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
-              <CircleCheck size={15} />
-              Saved
-            </span>
-          )}
-        </div>
+            <div className="mt-6 flex items-center gap-3">
+              <button
+                onClick={handleSaveProfile}
+                disabled={isSaving}
+                className="h-11 px-5 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center gap-2 hover:bg-neutral-800 active:scale-[0.99] transition disabled:opacity-60"
+              >
+                {isSaving && <Loader2 size={15} className="animate-spin" />}
+                Save changes
+              </button>
+
+              {saved && (
+                <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+                  <CircleCheck size={15} />
+                  Saved
+                </span>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ================= CV UPLOAD ================= */}
@@ -181,43 +283,60 @@ function ProfilePage() {
           These are matched against job requirements to calculate your match score.
         </p>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {skills.map((skill) => (
-            <span
-              key={skill}
-              className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full bg-violet-50 text-violet-700 text-sm font-medium"
-            >
-              {skill}
+        {skillsLoading ? (
+          <div className="mt-4 flex items-center gap-2 text-sm text-neutral-400">
+            <Loader2 size={16} className="animate-spin" />
+            Loading skills...
+          </div>
+        ) : (
+          <>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {skills.map((skill) => (
+                <span
+                  key={skill.skillId}
+                  className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full bg-violet-50 text-violet-700 text-sm font-medium"
+                >
+                  {skill.name}
+                  <button
+                    onClick={() => removeSkill(skill.skillId)}
+                    className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-violet-100 transition"
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+
+              {skills.length === 0 && (
+                <p className="text-sm text-neutral-400">No skills added yet.</p>
+              )}
+            </div>
+
+            {skillsError && (
+              <div className="mt-3 flex items-start gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
+                <AlertCircle size={17} className="mt-0.5 shrink-0" />
+                <span>{skillsError}</span>
+              </div>
+            )}
+
+            <div className="mt-4 flex items-center gap-2">
+              <input
+                value={newSkill}
+                onChange={(e) => setNewSkill(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addSkill()}
+                placeholder="e.g. Node.js"
+                className="h-11 w-56 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+              />
               <button
-                onClick={() => removeSkill(skill)}
-                className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-violet-100 transition"
+                onClick={addSkill}
+                disabled={isAddingSkill}
+                className="h-11 px-4 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center gap-1.5 hover:bg-neutral-800 active:scale-[0.99] transition disabled:opacity-60"
               >
-                <X size={12} />
+                {isAddingSkill ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                Add
               </button>
-            </span>
-          ))}
-
-          {skills.length === 0 && (
-            <p className="text-sm text-neutral-400">No skills added yet.</p>
-          )}
-        </div>
-
-        <div className="mt-4 flex items-center gap-2">
-          <input
-            value={newSkill}
-            onChange={(e) => setNewSkill(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addSkill()}
-            placeholder="e.g. Node.js"
-            className="h-11 w-56 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
-          />
-          <button
-            onClick={addSkill}
-            className="h-11 px-4 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center gap-1.5 hover:bg-neutral-800 active:scale-[0.99] transition"
-          >
-            <Plus size={14} />
-            Add
-          </button>
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
