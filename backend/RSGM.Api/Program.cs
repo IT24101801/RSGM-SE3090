@@ -191,6 +191,8 @@ builder.Services.AddScoped<TokenService>();
 // Handles Skill business logic
 builder.Services.AddScoped<SkillService>();
 
+builder.Services.AddScoped<JobSeekerProfileService>();
+
 
 // ======================================================
 // 8. HEALTH CHECKS
