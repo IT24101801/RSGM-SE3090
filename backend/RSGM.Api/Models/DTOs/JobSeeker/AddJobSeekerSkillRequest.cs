@@ -5,6 +5,5 @@ namespace RSGM.Api.Models.DTOs.JobSeeker;
 public class AddJobSeekerSkillRequest
 {
     [Required]
-    [MaxLength(100)]
-    public string Name { get; set; } = string.Empty;
+    public Guid SkillId { get; set; }
 }
