@@ -39,12 +39,12 @@ export async function getMySkills() {
   return data;
 }
 
-// POST /api/jobseeker/skills { name }
-export async function addMySkill(name) {
+// POST /api/jobseeker/skills { skillId }
+export async function addMySkill(skillId) {
   const response = await fetch(`${API_BASE_URL}/api/jobseeker/skills`, {
     method: "POST",
     headers: getAuthHeaders(),
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ skillId }),
   });
 
   const data = await readResponse(response);
