@@ -18,6 +18,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
     public DbSet<JobSeekerSkill> JobSeekerSkills => Set<JobSeekerSkill>();
 
+    public DbSet<JobSeekerCv> JobSeekerCvs => Set<JobSeekerCv>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -78,6 +80,31 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.HasOne(x => x.Skill)
                 .WithMany()
                 .HasForeignKey(x => x.SkillId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<JobSeekerCv>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.FileName)
+                .IsRequired()
+                .HasMaxLength(260);
+
+            entity.Property(x => x.StoredFileName)
+                .IsRequired()
+                .HasMaxLength(260);
+
+            entity.Property(x => x.ContentType)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.HasIndex(x => x.UserId)
+                .IsUnique();
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

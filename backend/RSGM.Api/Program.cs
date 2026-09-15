@@ -195,6 +195,8 @@ builder.Services.AddScoped<JobSeekerProfileService>();
 
 builder.Services.AddScoped<JobSeekerSkillService>();
 
+builder.Services.AddScoped<JobSeekerCvService>();
+
 
 // ======================================================
 // 8. HEALTH CHECKS
