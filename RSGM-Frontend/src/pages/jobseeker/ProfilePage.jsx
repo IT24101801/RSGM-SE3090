@@ -6,9 +6,7 @@ import {
 import { getProfile, updateProfile } from "../../services/jobSeekerProfileService";
 import { addMySkill, getMySkills, removeMySkill } from "../../services/jobSeekerSkillService";
 import { getSkills } from "../../services/skillService";
-
-// TODO: replace with GET/POST /api/jobseeker/cv
-const INITIAL_CV = { fileName: "Aisha_Rahman_CV.pdf", uploadedAt: "2026-08-28" };
+import { deleteCv, getCv, uploadCv } from "../../services/jobSeekerCvService";
 
 function ProfilePage() {
   const [profile, setProfile] = useState({ fullName: "", headline: "", location: "", bio: "" });
@@ -25,7 +23,9 @@ function ProfilePage() {
   const [selectedSkillId, setSelectedSkillId] = useState("");
   const [isAddingSkill, setIsAddingSkill] = useState(false);
 
-  const [cv, setCv] = useState(INITIAL_CV);
+  const [cv, setCv] = useState(null);
+  const [cvLoading, setCvLoading] = useState(true);
+  const [cvError, setCvError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -68,6 +68,25 @@ function ProfilePage() {
       })
       .finally(() => {
         if (!ignore) setIsLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+
+    getCv()
+      .then((data) => {
+        if (!ignore) setCv(data);
+      })
+      .catch((err) => {
+        if (!ignore) setCvError(err.message || "Unable to load CV.");
+      })
+      .finally(() => {
+        if (!ignore) setCvLoading(false);
       });
 
     return () => {
@@ -137,16 +156,34 @@ function ProfilePage() {
     }
   };
 
-  const handleFileSelect = (e) => {
+  const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setCvError("");
     setIsUploading(true);
-    // TODO: POST /api/jobseeker/cv (multipart/form-data)
-    setTimeout(() => {
-      setCv({ fileName: file.name, uploadedAt: new Date().toISOString().slice(0, 10) });
+
+    try {
+      const uploaded = await uploadCv(file);
+      setCv(uploaded);
+    } catch (err) {
+      setCvError(err.message || "Unable to upload CV.");
+    } finally {
       setIsUploading(false);
-    }, 900);
+      // reset so selecting the same file again still fires onChange
+      e.target.value = "";
+    }
+  };
+
+  const handleRemoveCv = async () => {
+    setCvError("");
+
+    try {
+      await deleteCv();
+      setCv(null);
+    } catch (err) {
+      setCvError(err.message || "Unable to remove CV.");
+    }
   };
 
   return (
@@ -247,7 +284,12 @@ function ProfilePage() {
       <div className="mt-6 rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30 p-6 max-w-2xl">
         <h2 className="text-lg font-semibold tracking-tight">CV / Resume</h2>
 
-        {cv ? (
+        {cvLoading ? (
+          <div className="mt-4 flex items-center gap-2 text-sm text-neutral-400">
+            <Loader2 size={16} className="animate-spin" />
+            Loading CV...
+          </div>
+        ) : cv ? (
           <div className="mt-4 flex items-center justify-between gap-4 p-4 rounded-xl border border-neutral-200 bg-neutral-50/60">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
@@ -255,12 +297,28 @@ function ProfilePage() {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-neutral-900 truncate">{cv.fileName}</p>
-                <p className="text-xs text-neutral-400">Uploaded {cv.uploadedAt}</p>
+                <p className="text-xs text-neutral-400">
+                  Uploaded {new Date(cv.uploadedAt).toLocaleDateString()}
+                </p>
               </div>
             </div>
+
+            <button
+              onClick={handleRemoveCv}
+              className="text-xs font-semibold text-red-600 hover:text-red-700 transition shrink-0"
+            >
+              Remove
+            </button>
           </div>
         ) : (
           <p className="mt-4 text-sm text-neutral-400">No CV uploaded yet.</p>
+        )}
+
+        {cvError && (
+          <div className="mt-3 flex items-start gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
+            <AlertCircle size={17} className="mt-0.5 shrink-0" />
+            <span>{cvError}</span>
+          </div>
         )}
 
         <input
@@ -279,6 +337,8 @@ function ProfilePage() {
           {isUploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
           {isUploading ? "Uploading..." : cv ? "Replace CV" : "Upload CV"}
         </button>
+
+        <p className="mt-2 text-xs text-neutral-400">PDF, DOC, or DOCX. Max 5 MB.</p>
       </div>
 
       {/* ================= SKILLS ================= */}
