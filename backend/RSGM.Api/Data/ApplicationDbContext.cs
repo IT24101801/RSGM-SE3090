@@ -20,6 +20,12 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
     public DbSet<JobSeekerCv> JobSeekerCvs => Set<JobSeekerCv>();
 
+    public DbSet<JobPosting> JobPostings => Set<JobPosting>();
+
+    public DbSet<JobPostingSkill> JobPostingSkills => Set<JobPostingSkill>();
+
+    public DbSet<Application> Applications => Set<Application>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -105,6 +111,62 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<JobPosting>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Title)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.Company)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.Location)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.Description)
+                .HasMaxLength(2000);
+        });
+
+        builder.Entity<JobPostingSkill>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.HasIndex(x => new { x.JobPostingId, x.SkillId })
+                .IsUnique();
+
+            entity.HasOne(x => x.JobPosting)
+                .WithMany(x => x.RequiredSkills)
+                .HasForeignKey(x => x.JobPostingId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Skill)
+                .WithMany()
+                .HasForeignKey(x => x.SkillId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<Application>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.HasIndex(x => new { x.UserId, x.JobPostingId })
+                .IsUnique();
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.JobPosting)
+                .WithMany()
+                .HasForeignKey(x => x.JobPostingId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

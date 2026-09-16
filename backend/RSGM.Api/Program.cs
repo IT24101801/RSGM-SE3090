@@ -197,6 +197,12 @@ builder.Services.AddScoped<JobSeekerSkillService>();
 
 builder.Services.AddScoped<JobSeekerCvService>();
 
+builder.Services.AddScoped<JobPostingService>();
+
+builder.Services.AddScoped<JobSeekerApplicationService>();
+
+
+
 
 // ======================================================
 // 8. HEALTH CHECKS
@@ -282,6 +288,8 @@ app.MapHealthChecks("/health");
 await IdentitySeeder.SeedAsync(
     app.Services,
     builder.Configuration);
+await JobPostingSeeder.SeedAsync(
+    app.Services);
 
 
 // ======================================================
