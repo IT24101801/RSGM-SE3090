@@ -199,6 +199,8 @@ builder.Services.AddScoped<JobSeekerCvService>();
 
 builder.Services.AddScoped<JobPostingService>();
 
+builder.Services.AddScoped<JobSeekerApplicationService>();
+
 
 
 
