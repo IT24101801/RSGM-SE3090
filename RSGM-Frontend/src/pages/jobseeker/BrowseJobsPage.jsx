@@ -4,20 +4,31 @@ import {
 } from "lucide-react";
 
 import { getJobPostings } from "../../services/jobPostingService";
+import { applyToJob, getMyApplications } from "../../services/jobSeekerApplicationService";
 
 function BrowseJobsPage() {
   const [jobs, setJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [appliedIds, setAppliedIds] = useState(new Set());
+
+  const [appliedJobIds, setAppliedJobIds] = useState(new Set());
+  const [applyingJobId, setApplyingJobId] = useState(null);
 
   useEffect(() => {
     let ignore = false;
 
-    getJobPostings()
-      .then((data) => {
-        if (!ignore) setJobs(data);
+    Promise.all([getJobPostings(), getMyApplications()])
+      .then(([postings, applications]) => {
+        if (ignore) return;
+        setJobs(postings);
+        setAppliedJobIds(
+          new Set(
+            applications
+              .filter((a) => a.status !== "Withdrawn")
+              .map((a) => a.jobPostingId)
+          )
+        );
       })
       .catch((err) => {
         if (!ignore) setError(err.message || "Unable to load jobs.");
@@ -39,9 +50,18 @@ function BrowseJobsPage() {
     );
   }, [jobs, query]);
 
-  const applyToJob = (id) => {
-    // TODO: wire to POST /api/jobseeker/applications once Applications (Step 4) exists
-    setAppliedIds((prev) => new Set(prev).add(id));
+  const handleApply = async (jobId) => {
+    setError("");
+    setApplyingJobId(jobId);
+
+    try {
+      await applyToJob(jobId);
+      setAppliedJobIds((prev) => new Set(prev).add(jobId));
+    } catch (err) {
+      setError(err.message || "Unable to submit application.");
+    } finally {
+      setApplyingJobId(null);
+    }
   };
 
   return (
@@ -80,51 +100,58 @@ function BrowseJobsPage() {
         </div>
       ) : (
         <div className="mt-6 space-y-4">
-          {filteredJobs.map((j) => (
-            <div
-              key={j.id}
-              className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30"
-            >
-              <div className="flex items-start gap-4 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
-                  <Briefcase size={20} className="text-violet-600" />
-                </div>
+          {filteredJobs.map((j) => {
+            const applied = appliedJobIds.has(j.id);
+            const isApplying = applyingJobId === j.id;
 
-                <div className="min-w-0">
-                  <p className="font-semibold text-neutral-900">{j.title}</p>
-                  <p className="mt-0.5 text-sm text-neutral-500">
-                    {j.company} · <span className="inline-flex items-center gap-1"><MapPin size={12} />{j.location}</span>
-                  </p>
-                  {j.description && (
-                    <p className="mt-1.5 text-sm text-neutral-500 line-clamp-2 max-w-xl">{j.description}</p>
-                  )}
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {j.requiredSkills.map((s) => (
-                      <span key={s} className="px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 text-[11px] font-medium">
-                        {s}
-                      </span>
-                    ))}
+            return (
+              <div
+                key={j.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30"
+              >
+                <div className="flex items-start gap-4 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
+                    <Briefcase size={20} className="text-violet-600" />
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="font-semibold text-neutral-900">{j.title}</p>
+                    <p className="mt-0.5 text-sm text-neutral-500">
+                      {j.company} · <span className="inline-flex items-center gap-1"><MapPin size={12} />{j.location}</span>
+                    </p>
+                    {j.description && (
+                      <p className="mt-1.5 text-sm text-neutral-500 line-clamp-2 max-w-xl">{j.description}</p>
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {j.requiredSkills.map((s) => (
+                        <span key={s} className="px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 text-[11px] font-medium">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-4 shrink-0">
-                {appliedIds.has(j.id) ? (
-                  <span className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-semibold">
-                    <CheckCircle2 size={14} />
-                    Applied
-                  </span>
-                ) : (
-                  <button
-                    onClick={() => applyToJob(j.id)}
-                    className="h-10 px-4 rounded-xl bg-neutral-900 text-white text-sm font-semibold hover:bg-neutral-800 active:scale-[0.99] transition"
-                  >
-                    Apply
-                  </button>
-                )}
+                <div className="flex items-center gap-4 shrink-0">
+                  {applied ? (
+                    <span className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-semibold">
+                      <CheckCircle2 size={14} />
+                      Applied
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => handleApply(j.id)}
+                      disabled={isApplying}
+                      className="h-10 px-4 rounded-xl bg-neutral-900 text-white text-sm font-semibold hover:bg-neutral-800 active:scale-[0.99] transition disabled:opacity-60 flex items-center gap-2"
+                    >
+                      {isApplying && <Loader2 size={14} className="animate-spin" />}
+                      Apply
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {filteredJobs.length === 0 && (
             <div className="py-16 text-center text-sm text-neutral-400 rounded-2xl border border-neutral-200 bg-white">
