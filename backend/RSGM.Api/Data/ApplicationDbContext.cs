@@ -24,6 +24,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
     public DbSet<JobPostingSkill> JobPostingSkills => Set<JobPostingSkill>();
 
+    public DbSet<Application> Applications => Set<Application>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
