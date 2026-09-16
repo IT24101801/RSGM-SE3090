@@ -151,5 +151,23 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
                 .HasForeignKey(x => x.SkillId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        builder.Entity<Application>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.HasIndex(x => new { x.UserId, x.JobPostingId })
+                .IsUnique();
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.JobPosting)
+                .WithMany()
+                .HasForeignKey(x => x.JobPostingId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }
