@@ -203,6 +203,8 @@ builder.Services.AddScoped<JobSeekerApplicationService>();
 
 builder.Services.AddScoped<JobSeekerDashboardService>();
 
+builder.Services.AddScoped<JobSeekerAccountService>();
+
 
 
 
