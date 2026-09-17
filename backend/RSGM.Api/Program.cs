@@ -205,7 +205,7 @@ builder.Services.AddScoped<JobSeekerDashboardService>();
 
 builder.Services.AddScoped<JobSeekerAccountService>();
 
-
+builder.Services.AddScoped<AdminUserService>();
 
 
 // ======================================================
