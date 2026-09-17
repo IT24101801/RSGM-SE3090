@@ -201,6 +201,8 @@ builder.Services.AddScoped<JobPostingService>();
 
 builder.Services.AddScoped<JobSeekerApplicationService>();
 
+builder.Services.AddScoped<JobSeekerDashboardService>();
+
 
 
 
