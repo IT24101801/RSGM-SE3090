@@ -73,6 +73,9 @@ function LoginPage() {
         response,
         form.rememberMe
       );
+
+      const roles = response.roles || [];
+      
       if (roles.includes("SystemAdmin")) {
         navigate("/admin");
       } else if (roles.includes("Recruiter")) {
