@@ -1,8 +1,15 @@
-namespace RSGM.Api.Models.DTOs.JobSeeker
+using System.ComponentModel.DataAnnotations;
+
+namespace RSGM.Api.Models.DTOs.JobSeeker;
+
+public class ChangePasswordDto
 {
-    public class ChangePasswordDto
-    {
-        public string CurrentPassword { get; set; }
-        public string NewPassword { get; set; }
-    }
+    [Required]
+    public string CurrentPassword { get; set; } =
+        string.Empty;
+
+    [Required]
+    [MinLength(8)]
+    public string NewPassword { get; set; } =
+        string.Empty;
 }
