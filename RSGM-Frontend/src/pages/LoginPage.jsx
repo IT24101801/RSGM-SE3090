@@ -1,19 +1,19 @@
 import { useState } from "react";
 import {
   Link,
+  useLocation,
   useNavigate,
 } from "react-router-dom";
-
 import {
-  ArrowRight,
-  Mail,
   AlertCircle,
+  ArrowRight,
+  CircleCheck,
+  Mail,
 } from "lucide-react";
 
 import AuthShell from "../components/auth/AuthShell";
 import FormField from "../components/auth/FormField";
 import PasswordField from "../components/auth/PasswordField";
-
 import {
   loginUser,
   saveAuth,
@@ -21,6 +21,7 @@ import {
 
 function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [form, setForm] = useState({
     email: "",
@@ -31,6 +32,9 @@ function LoginPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] =
     useState(false);
+
+  const successMessage =
+    location.state?.message || "";
 
   const handleChange = (event) => {
     const {
@@ -57,44 +61,52 @@ function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Send data to ASP.NET backend.
       const response = await loginUser({
         email: form.email.trim(),
         password: form.password,
       });
 
-      console.log(
-        "Login response:",
-        response
-      );
-
-      // Save JWT.
       saveAuth(
         response,
         form.rememberMe
       );
 
       const roles = response.roles || [];
-      
+
       if (roles.includes("SystemAdmin")) {
-        navigate("/admin");
-      } else if (roles.includes("Recruiter")) {
-        navigate("/recruiter");
-      } else if (roles.includes("HRManager")) {
-        navigate("/hr");
-      } else if (roles.includes("JobSeeker")) {
-        navigate("/jobs");
-      } else if (roles.includes("HiringPanelist")) {
-        navigate("/panelist");
+        navigate("/admin", {
+          replace: true,
+        });
+      } else if (
+        roles.includes("Recruiter")
+      ) {
+        navigate("/recruiter", {
+          replace: true,
+        });
+      } else if (
+        roles.includes("HRManager")
+      ) {
+        navigate("/hr", {
+          replace: true,
+        });
+      } else if (
+        roles.includes("JobSeeker")
+      ) {
+        navigate("/jobs", {
+          replace: true,
+        });
+      } else if (
+        roles.includes("HiringPanelist")
+      ) {
+        navigate("/panelist", {
+          replace: true,
+        });
       } else {
-        navigate("/");
+        navigate("/", {
+          replace: true,
+        });
       }
     } catch (err) {
-      console.error(
-        "Login error:",
-        err
-      );
-
       setError(
         err.message ||
           "Unable to login."
@@ -110,11 +122,22 @@ function LoginPage() {
       title="Sign in to RSGM"
       subtitle="Access your account and continue managing your recruitment workflow."
     >
-
       <form
         onSubmit={handleSubmit}
         className="space-y-5"
       >
+        {/* ACCOUNT DELETED SUCCESS MESSAGE */}
+
+        {successMessage && (
+          <div className="flex items-start gap-3 p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-sm text-emerald-700">
+            <CircleCheck
+              size={17}
+              className="mt-0.5 shrink-0"
+            />
+
+            <span>{successMessage}</span>
+          </div>
+        )}
 
         {/* EMAIL */}
 
@@ -146,37 +169,28 @@ function LoginPage() {
 
         {error && (
           <div className="flex items-start gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
-
             <AlertCircle
               size={17}
               className="mt-0.5 shrink-0"
             />
 
             <span>{error}</span>
-
           </div>
         )}
 
-        {/* OPTIONS */}
+        {/* LOGIN OPTIONS */}
 
         <div className="flex items-center justify-between gap-4">
-
           <label className="flex items-center gap-2 cursor-pointer text-sm text-neutral-500">
-
             <input
               type="checkbox"
               name="rememberMe"
-              checked={
-                form.rememberMe
-              }
-              onChange={
-                handleChange
-              }
+              checked={form.rememberMe}
+              onChange={handleChange}
               className="w-4 h-4 rounded border-neutral-300 accent-violet-600"
             />
 
             Remember me
-
           </label>
 
           <button
@@ -185,17 +199,15 @@ function LoginPage() {
           >
             Forgot password?
           </button>
-
         </div>
 
-        {/* LOGIN */}
+        {/* LOGIN BUTTON */}
 
         <button
           type="submit"
           disabled={isLoading}
           className="group w-full h-12 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center justify-center gap-3 hover:bg-neutral-800 active:scale-[0.99] transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
-
           {isLoading
             ? "Signing in..."
             : "Sign in"}
@@ -206,34 +218,27 @@ function LoginPage() {
               className="group-hover:translate-x-1 transition-transform"
             />
           )}
-
         </button>
-
       </form>
 
       {/* DIVIDER */}
 
       <div className="relative my-7">
-
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-neutral-200" />
         </div>
 
         <div className="relative flex justify-center">
-
           <span className="bg-white px-4 text-xs text-neutral-400">
             NEW TO RSGM?
           </span>
-
         </div>
-
       </div>
 
-      {/* REGISTER */}
+      {/* REGISTER LINK */}
 
       <p className="text-center text-sm text-neutral-500">
-
-        Don't have an account?{" "}
+        Don&apos;t have an account?{" "}
 
         <Link
           to="/register"
@@ -241,9 +246,7 @@ function LoginPage() {
         >
           Create account
         </Link>
-
       </p>
-
     </AuthShell>
   );
 }
