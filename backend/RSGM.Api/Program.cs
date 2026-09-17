@@ -207,6 +207,8 @@ builder.Services.AddScoped<JobSeekerAccountService>();
 
 builder.Services.AddScoped<AdminUserService>();
 
+builder.Services.AddScoped<AdminDashboardService>();
+
 
 // ======================================================
 // 8. HEALTH CHECKS
