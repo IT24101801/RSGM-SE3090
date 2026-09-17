@@ -55,3 +55,20 @@ export async function updateProfile(profileData) {
 
   return data;
 }
+
+// PUT /api/jobseeker/profile/password
+export async function changePassword(currentPassword, newPassword) {
+  const response = await fetch(`${API_BASE_URL}/api/jobseeker/profile/password`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+
+  const data = await readResponse(response);
+
+  if (!response.ok) {
+    throw new Error(getErrorMessage(data, "Unable to update password."));
+  }
+
+  return data;
+}
