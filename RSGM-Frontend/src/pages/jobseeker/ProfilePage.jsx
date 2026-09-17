@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  AlertCircle, CircleCheck, FileText, Loader2, Plus, Sparkles, Upload, X,
+  AlertCircle, CircleCheck, FileText, KeyRound, Loader2, Plus, Sparkles, Upload, X,
 } from "lucide-react";
 
-import { getProfile, updateProfile } from "../../services/jobSeekerProfileService";
+import { changePassword, getProfile, updateProfile } from "../../services/jobSeekerProfileService";
 import { addMySkill, getMySkills, removeMySkill } from "../../services/jobSeekerSkillService";
 import { getSkills } from "../../services/skillService";
 import { deleteCv, getCv, uploadCv } from "../../services/jobSeekerCvService";
@@ -28,6 +28,15 @@ function ProfilePage() {
   const [cvError, setCvError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [passwordError, setPasswordError] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordChanged, setPasswordChanged] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -183,6 +192,38 @@ function ProfilePage() {
       setCv(null);
     } catch (err) {
       setCvError(err.message || "Unable to remove CV.");
+    }
+  };
+
+  const updatePasswordField = (key, value) => {
+    setPasswordForm((prev) => ({ ...prev, [key]: value }));
+    setPasswordChanged(false);
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordError("");
+
+    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
+      setPasswordError("Please fill in all password fields.");
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError("New password and confirmation do not match.");
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setPasswordChanged(true);
+      setTimeout(() => setPasswordChanged(false), 2500);
+    } catch (err) {
+      setPasswordError(err.message || "Unable to update password.");
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -412,6 +453,69 @@ function ProfilePage() {
             )}
           </>
         )}
+      </div>
+
+      {/* ================= PASSWORD ================= */}
+
+      <div className="mt-6 rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30 p-6 max-w-2xl">
+        <h2 className="text-lg font-semibold tracking-tight">Password</h2>
+        <p className="mt-1 text-sm text-neutral-500">
+          Update the password you use to sign in.
+        </p>
+
+        <div className="mt-5 space-y-4">
+          <Field label="Current password">
+            <input
+              type="password"
+              value={passwordForm.currentPassword}
+              onChange={(e) => updatePasswordField("currentPassword", e.target.value)}
+              className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+            />
+          </Field>
+
+          <Field label="New password">
+            <input
+              type="password"
+              value={passwordForm.newPassword}
+              onChange={(e) => updatePasswordField("newPassword", e.target.value)}
+              className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+            />
+          </Field>
+
+          <Field label="Confirm new password">
+            <input
+              type="password"
+              value={passwordForm.confirmPassword}
+              onChange={(e) => updatePasswordField("confirmPassword", e.target.value)}
+              className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+            />
+          </Field>
+        </div>
+
+        {passwordError && (
+          <div className="mt-4 flex items-start gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
+            <AlertCircle size={17} className="mt-0.5 shrink-0" />
+            <span>{passwordError}</span>
+          </div>
+        )}
+
+        <div className="mt-6 flex items-center gap-3">
+          <button
+            onClick={handleChangePassword}
+            disabled={isChangingPassword}
+            className="h-11 px-5 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center gap-2 hover:bg-neutral-800 active:scale-[0.99] transition disabled:opacity-60"
+          >
+            {isChangingPassword ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}
+            Update password
+          </button>
+
+          {passwordChanged && (
+            <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+              <CircleCheck size={15} />
+              Updated
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
