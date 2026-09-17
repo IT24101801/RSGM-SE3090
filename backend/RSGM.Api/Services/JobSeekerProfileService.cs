@@ -6,6 +6,13 @@ using RSGM.Api.Models.Entities;
 
 namespace RSGM.Api.Services;
 
+public enum ChangePasswordResult
+{
+    Success,
+    UserNotFound,
+    Failed
+}
+
 public class JobSeekerProfileService
 {
     private readonly ApplicationDbContext _context;
@@ -88,5 +95,30 @@ public class JobSeekerProfileService
             Location = profile.Location,
             Bio = profile.Bio
         };
+    }
+
+    public async Task<(ChangePasswordResult Result, IEnumerable<string> Errors)> ChangePasswordAsync(
+        Guid userId,
+        ChangePasswordDto request)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+
+        if (user == null)
+        {
+            return (ChangePasswordResult.UserNotFound, Array.Empty<string>());
+        }
+
+        var result = await _userManager.ChangePasswordAsync(
+            user,
+            request.CurrentPassword,
+            request.NewPassword);
+
+        if (!result.Succeeded)
+        {
+            var errors = result.Errors.Select(e => e.Description).ToList();
+            return (ChangePasswordResult.Failed, errors);
+        }
+
+        return (ChangePasswordResult.Success, Array.Empty<string>());
     }
 }
