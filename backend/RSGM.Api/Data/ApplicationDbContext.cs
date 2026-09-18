@@ -20,6 +20,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
     public DbSet<JobSeekerCv> JobSeekerCvs => Set<JobSeekerCv>();
 
+    public DbSet<Education> EducationRecords => Set<Education>();
+
+    public DbSet<WorkExperience> WorkExperiences => Set<WorkExperience>();
+
     public DbSet<JobPosting> JobPostings => Set<JobPosting>();
 
     public DbSet<JobPostingSkill> JobPostingSkills => Set<JobPostingSkill>();
@@ -65,6 +69,15 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
             entity.Property(x => x.Bio)
                 .HasMaxLength(1000);
+
+            entity.Property(x => x.LinkedInUrl)
+                .HasMaxLength(500);
+
+            entity.Property(x => x.GitHubUrl)
+                .HasMaxLength(500);
+
+            entity.Property(x => x.PortfolioUrl)
+                .HasMaxLength(500);
 
             entity.HasIndex(x => x.UserId)
                 .IsUnique();
@@ -208,6 +221,58 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
             entity.HasOne(x => x.User)
                 .WithMany(x => x.CompanyMemberships)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<Education>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Institution)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.Degree)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.FieldOfStudy)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.Description)
+                .HasMaxLength(1000);
+
+            entity.HasIndex(x => x.UserId);
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<WorkExperience>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.JobTitle)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.CompanyName)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.Location)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.Description)
+                .HasMaxLength(1000);
+
+            entity.HasIndex(x => x.UserId);
+
+            entity.HasOne(x => x.User)
+                .WithMany()
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
