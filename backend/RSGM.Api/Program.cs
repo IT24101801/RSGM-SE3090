@@ -232,6 +232,10 @@ builder.Services.AddScoped<SkillService>();
 
 builder.Services.AddScoped<JobSeekerProfileService>();
 
+builder.Services.AddScoped<JobSeekerEducationService>();
+
+builder.Services.AddScoped<JobSeekerWorkExperienceService>();
+
 builder.Services.AddScoped<JobSeekerSkillService>();
 
 builder.Services.AddScoped<JobSeekerCvService>();
