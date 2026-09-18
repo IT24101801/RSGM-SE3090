@@ -7,6 +7,29 @@ public enum JobPostingStatus
     Closed
 }
 
+public enum EmploymentType
+{
+    FullTime,
+    PartTime,
+    Contract,
+    Internship
+}
+
+public enum WorkMode
+{
+    OnSite,
+    Remote,
+    Hybrid
+}
+
+public enum ExperienceLevel
+{
+    Entry,
+    Junior,
+    Mid,
+    Senior
+}
+
 public class JobPosting
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -23,7 +46,29 @@ public class JobPosting
 
     public string Location { get; set; } = string.Empty;
 
+    public EmploymentType EmploymentType { get; set; }
+
+    public WorkMode WorkMode { get; set; }
+
     public string? Description { get; set; }
+
+    public string Responsibilities { get; set; } = string.Empty;
+
+    public string Requirements { get; set; } = string.Empty;
+
+    public ExperienceLevel ExperienceLevel { get; set; }
+
+    public int? MinExperienceYears { get; set; }
+
+    public decimal? MinSalary { get; set; }
+
+    public decimal? MaxSalary { get; set; }
+
+    public string? Currency { get; set; }
+
+    // Nullable so pre-existing jobs can survive the migration. New recruiter
+    // postings always receive a validated future deadline.
+    public DateOnly? ApplicationDeadline { get; set; }
 
     public JobPostingStatus Status { get; set; } = JobPostingStatus.Draft;
 
