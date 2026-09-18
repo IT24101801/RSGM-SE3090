@@ -137,6 +137,23 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.Property(x => x.Description)
                 .HasMaxLength(2000);
 
+            entity.Property(x => x.Responsibilities)
+                .IsRequired()
+                .HasMaxLength(3000);
+
+            entity.Property(x => x.Requirements)
+                .IsRequired()
+                .HasMaxLength(3000);
+
+            entity.Property(x => x.MinSalary)
+                .HasPrecision(18, 2);
+
+            entity.Property(x => x.MaxSalary)
+                .HasPrecision(18, 2);
+
+            entity.Property(x => x.Currency)
+                .HasMaxLength(3);
+
             entity.HasIndex(x => x.CompanyId);
 
             entity.HasIndex(x => x.CreatedByUserId);
