@@ -1,4 +1,5 @@
 using System.Text;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -171,6 +172,44 @@ builder.Services
                 // Expired means expired immediately
                 ClockSkew = TimeSpan.Zero
             };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var idClaim = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+
+                if (!Guid.TryParse(idClaim, out var userId))
+                {
+                    context.Fail("Invalid user identifier.");
+                    return;
+                }
+
+                var userManager = context.HttpContext.RequestServices
+                    .GetRequiredService<UserManager<ApplicationUser>>();
+                var user = await userManager.FindByIdAsync(userId.ToString());
+
+                if (user == null || !user.IsActive)
+                {
+                    context.Fail("This account is inactive or no longer exists.");
+                    return;
+                }
+
+                var currentRoles = (await userManager.GetRolesAsync(user))
+                    .OrderBy(role => role)
+                    .ToArray();
+                var tokenRoles = context.Principal!
+                    .FindAll(ClaimTypes.Role)
+                    .Select(claim => claim.Value)
+                    .OrderBy(role => role)
+                    .ToArray();
+
+                if (!currentRoles.SequenceEqual(tokenRoles))
+                {
+                    context.Fail("The account roles have changed. Please sign in again.");
+                }
+            }
+        };
     });
 
 
@@ -208,6 +247,12 @@ builder.Services.AddScoped<JobSeekerAccountService>();
 builder.Services.AddScoped<AdminUserService>();
 
 builder.Services.AddScoped<AdminDashboardService>();
+
+builder.Services.AddScoped<AdminCompanyService>();
+
+builder.Services.AddScoped<RecruiterJobPostingService>();
+
+
 
 
 // ======================================================
@@ -295,6 +340,8 @@ await IdentitySeeder.SeedAsync(
     app.Services,
     builder.Configuration);
 await JobPostingSeeder.SeedAsync(
+    app.Services);
+await CompanySeeder.SeedAsync(
     app.Services);
 
 

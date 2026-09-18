@@ -13,11 +13,18 @@ import {
   updateAdminUserRole,
   updateAdminUserStatus,
 } from "../../services/adminUserService";
+import {
+  assignCompanyMember,
+  getAdminCompanies,
+  removeCompanyMember,
+} from "../../services/adminCompanyService";
 
 const ROLES = ["JobSeeker", "Recruiter", "HRManager", "HiringPanelist", "SystemAdmin"];
+const COMPANY_ROLES = new Set(["Recruiter", "HRManager", "HiringPanelist"]);
 
 function AdminUsersPage() {
   const [users, setUsers] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
   const [isLoading, setIsLoading] = useState(true);
@@ -27,9 +34,12 @@ function AdminUsersPage() {
   useEffect(() => {
     let ignore = false;
 
-    getAdminUsers()
-      .then((data) => {
-        if (!ignore) setUsers(data);
+    Promise.all([getAdminUsers(), getAdminCompanies()])
+      .then(([userData, companyData]) => {
+        if (!ignore) {
+          setUsers(userData);
+          setCompanies(companyData.filter((company) => company.isActive));
+        }
       })
       .catch((requestError) => {
         if (!ignore) setError(requestError.message || "Unable to load users.");
@@ -82,6 +92,32 @@ function AdminUsersPage() {
     }
   };
 
+  const changeCompany = async (user, newCompanyId) => {
+    if ((user.companyId ?? "") === newCompanyId) return;
+    setError("");
+    setUpdatingId(user.id);
+    try {
+      if (!newCompanyId) {
+        if (user.companyId) {
+          await removeCompanyMember(user.companyId, user.id);
+        }
+        replaceUser({ ...user, companyId: null, companyName: null });
+      } else {
+        await assignCompanyMember(newCompanyId, user.id);
+        const company = companies.find((item) => item.id === newCompanyId);
+        replaceUser({
+          ...user,
+          companyId: newCompanyId,
+          companyName: company?.name ?? null,
+        });
+      }
+    } catch (requestError) {
+      setError(requestError.message || "Unable to update company assignment.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   return (
     <div>
       <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-50 text-violet-600 text-[11px] font-semibold">
@@ -129,6 +165,7 @@ function AdminUsersPage() {
               <tr className="border-b border-neutral-200/70 text-left text-xs text-neutral-400 uppercase tracking-wide">
                 <th className="px-6 py-4 font-medium">User</th>
                 <th className="px-6 py-4 font-medium">Role</th>
+                <th className="px-6 py-4 font-medium">Company</th>
                 <th className="px-6 py-4 font-medium">Joined</th>
                 <th className="px-6 py-4 font-medium">Status</th>
                 <th className="px-6 py-4 font-medium text-right">Actions</th>
@@ -138,7 +175,7 @@ function AdminUsersPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center">
+                  <td colSpan={6} className="px-6 py-16 text-center">
                     <span className="inline-flex items-center gap-2 text-neutral-400">
                       <Loader2 size={17} className="animate-spin" />
                       Loading users...
@@ -171,6 +208,24 @@ function AdminUsersPage() {
                         {user.role === "Unassigned" && <option value="Unassigned" disabled>Unassigned</option>}
                         {ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
                       </select>
+                    </td>
+
+                    <td className="px-6 py-4">
+                      {COMPANY_ROLES.has(user.role) ? (
+                        <select
+                          value={user.companyId ?? ""}
+                          onChange={(event) => changeCompany(user, event.target.value)}
+                          disabled={isUpdating}
+                          className="h-9 min-w-36 rounded-lg border border-neutral-200 bg-white px-2.5 text-xs outline-none focus:border-violet-400 disabled:opacity-50"
+                        >
+                          <option value="">Not assigned</option>
+                          {companies.map((company) => (
+                            <option key={company.id} value={company.id}>{company.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-neutral-400">Not required</span>
+                      )}
                     </td>
 
                     <td className="px-6 py-4 text-neutral-500">
@@ -213,7 +268,7 @@ function AdminUsersPage() {
 
               {!isLoading && filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center text-sm text-neutral-400">
+                  <td colSpan={6} className="px-6 py-16 text-center text-sm text-neutral-400">
                     No users match your filters.
                   </td>
                 </tr>
