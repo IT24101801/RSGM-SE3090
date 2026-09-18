@@ -45,7 +45,10 @@ public class JobSeekerProfileService
             Email = user.Email!,
             Headline = profile?.Headline,
             Location = profile?.Location,
-            Bio = profile?.Bio
+            Bio = profile?.Bio,
+            LinkedInUrl = profile?.LinkedInUrl,
+            GitHubUrl = profile?.GitHubUrl,
+            PortfolioUrl = profile?.PortfolioUrl
         };
     }
 
@@ -83,6 +86,9 @@ public class JobSeekerProfileService
         profile.Headline = request.Headline?.Trim();
         profile.Location = request.Location?.Trim();
         profile.Bio = request.Bio?.Trim();
+        profile.LinkedInUrl = Clean(request.LinkedInUrl);
+        profile.GitHubUrl = Clean(request.GitHubUrl);
+        profile.PortfolioUrl = Clean(request.PortfolioUrl);
         profile.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
@@ -93,7 +99,10 @@ public class JobSeekerProfileService
             Email = user.Email!,
             Headline = profile.Headline,
             Location = profile.Location,
-            Bio = profile.Bio
+            Bio = profile.Bio,
+            LinkedInUrl = profile.LinkedInUrl,
+            GitHubUrl = profile.GitHubUrl,
+            PortfolioUrl = profile.PortfolioUrl
         };
     }
 
@@ -121,4 +130,7 @@ public class JobSeekerProfileService
 
         return (ChangePasswordResult.Success, Array.Empty<string>());
     }
+
+    private static string? Clean(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
