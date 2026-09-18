@@ -8,6 +8,7 @@ import AdminLayout from "../layouts/AdminLayout";
 import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
 import AdminSkillsPage from "../pages/admin/AdminSkillsPage";
 import AdminUsersPage from "../pages/admin/AdminUsersPage";
+import AdminCompaniesPage from "../pages/admin/AdminCompaniesPage";
 import AdminAuditLogsPage from "../pages/admin/AdminAuditLogsPage";
 import AdminWorkflowsPage from "../pages/admin/AdminWorkflowsPage";
 import AdminStatsPage from "../pages/admin/AdminStatsPage";
@@ -59,6 +60,7 @@ function AppRoutes() {
       >
         <Route index element={<AdminDashboardPage />} />
         <Route path="users" element={<AdminUsersPage />} />
+        <Route path="companies" element={<AdminCompaniesPage />} />
         <Route path="skills" element={<AdminSkillsPage />} />
         <Route path="audit-logs" element={<AdminAuditLogsPage />} />
         <Route path="workflows" element={<AdminWorkflowsPage />} />
