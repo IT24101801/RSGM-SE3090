@@ -120,6 +120,18 @@ public class AdminUserService
                     addResult.Errors.Select(error => error.Description).ToArray());
             }
 
+            var usesCompany = role == AppRoles.Recruiter ||
+                              role == AppRoles.HRManager ||
+                              role == AppRoles.HiringPanelist;
+
+            if (!usesCompany)
+            {
+                var memberships = await _context.CompanyMembers
+                    .Where(member => member.UserId == user.Id)
+                    .ToListAsync();
+                _context.CompanyMembers.RemoveRange(memberships);
+            }
+
             user.UpdatedAt = DateTime.UtcNow;
             var updateResult = await _userManager.UpdateAsync(user);
             if (!updateResult.Succeeded)
@@ -154,6 +166,16 @@ public class AdminUserService
     private async Task<AdminUserResponse> ToResponseAsync(ApplicationUser user)
     {
         var roles = await _userManager.GetRolesAsync(user);
+        var membership = await _context.CompanyMembers
+            .AsNoTracking()
+            .Where(member => member.UserId == user.Id && member.IsActive)
+            .Select(member => new
+            {
+                member.CompanyId,
+                CompanyName = member.Company.Name
+            })
+            .FirstOrDefaultAsync();
+
         return new AdminUserResponse
         {
             Id = user.Id,
@@ -161,7 +183,9 @@ public class AdminUserService
             Email = user.Email ?? string.Empty,
             Role = roles.FirstOrDefault() ?? "Unassigned",
             IsActive = user.IsActive,
-            CreatedAt = user.CreatedAt
+            CreatedAt = user.CreatedAt,
+            CompanyId = membership?.CompanyId,
+            CompanyName = membership?.CompanyName
         };
     }
 }

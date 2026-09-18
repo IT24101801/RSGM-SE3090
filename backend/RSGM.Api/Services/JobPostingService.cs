@@ -21,6 +21,7 @@ public class JobPostingService
         var postings = await _context.JobPostings
             .AsNoTracking()
             .Where(x => x.Status == JobPostingStatus.Published)
+            .Include(x => x.CompanyEntity)
             .Include(x => x.RequiredSkills)
                 .ThenInclude(rs => rs.Skill)
             .OrderByDescending(x => x.CreatedAt)
@@ -33,6 +34,7 @@ public class JobPostingService
     {
         var posting = await _context.JobPostings
             .AsNoTracking()
+            .Include(x => x.CompanyEntity)
             .Include(x => x.RequiredSkills)
                 .ThenInclude(rs => rs.Skill)
             .FirstOrDefaultAsync(x => x.Id == id && x.Status == JobPostingStatus.Published);
@@ -46,7 +48,7 @@ public class JobPostingService
         {
             Id = posting.Id,
             Title = posting.Title,
-            Company = posting.Company,
+            Company = posting.CompanyEntity?.Name ?? posting.Company,
             Location = posting.Location,
             Description = posting.Description,
             RequiredSkills = posting.RequiredSkills
