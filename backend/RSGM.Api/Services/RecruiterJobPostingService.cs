@@ -13,6 +13,12 @@ public enum RecruiterJobResult
     CompanyInactive,
     InvalidSkills,
     InvalidStatus,
+    InvalidEmploymentType,
+    InvalidWorkMode,
+    InvalidExperienceLevel,
+    InvalidExperience,
+    InvalidSalary,
+    InvalidDeadline,
     ClosedJob,
     HasApplications
 }
@@ -72,6 +78,19 @@ public class RecruiterJobPostingService
         if (skills == null)
             return (RecruiterJobResult.InvalidSkills, null);
 
+        var validation = ValidateJobDetails(
+            request.EmploymentType,
+            request.WorkMode,
+            request.ExperienceLevel,
+            request.MinExperienceYears,
+            request.MinSalary,
+            request.MaxSalary,
+            request.Currency,
+            request.ApplicationDeadline,
+            out var details);
+        if (validation != RecruiterJobResult.Success)
+            return (validation, null);
+
         var job = new JobPosting
         {
             Title = request.Title.Trim(),
@@ -79,7 +98,17 @@ public class RecruiterJobPostingService
             CompanyId = membership.CompanyId,
             CreatedByUserId = recruiterId,
             Location = request.Location.Trim(),
-            Description = Clean(request.Description),
+            EmploymentType = details.EmploymentType,
+            WorkMode = details.WorkMode,
+            Description = request.Description.Trim(),
+            Responsibilities = request.Responsibilities.Trim(),
+            Requirements = request.Requirements.Trim(),
+            ExperienceLevel = details.ExperienceLevel,
+            MinExperienceYears = details.MinExperienceYears,
+            MinSalary = request.MinSalary,
+            MaxSalary = request.MaxSalary,
+            Currency = details.Currency,
+            ApplicationDeadline = request.ApplicationDeadline,
             Status = JobPostingStatus.Draft
         };
 
@@ -116,9 +145,32 @@ public class RecruiterJobPostingService
         if (skills == null)
             return (RecruiterJobResult.InvalidSkills, null);
 
+        var validation = ValidateJobDetails(
+            request.EmploymentType,
+            request.WorkMode,
+            request.ExperienceLevel,
+            request.MinExperienceYears,
+            request.MinSalary,
+            request.MaxSalary,
+            request.Currency,
+            request.ApplicationDeadline,
+            out var details);
+        if (validation != RecruiterJobResult.Success)
+            return (validation, null);
+
         job.Title = request.Title.Trim();
         job.Location = request.Location.Trim();
-        job.Description = Clean(request.Description);
+        job.EmploymentType = details.EmploymentType;
+        job.WorkMode = details.WorkMode;
+        job.Description = request.Description.Trim();
+        job.Responsibilities = request.Responsibilities.Trim();
+        job.Requirements = request.Requirements.Trim();
+        job.ExperienceLevel = details.ExperienceLevel;
+        job.MinExperienceYears = details.MinExperienceYears;
+        job.MinSalary = request.MinSalary;
+        job.MaxSalary = request.MaxSalary;
+        job.Currency = details.Currency;
+        job.ApplicationDeadline = request.ApplicationDeadline;
         job.UpdatedAt = DateTime.UtcNow;
 
         _context.JobPostingSkills.RemoveRange(job.RequiredSkills);
@@ -148,10 +200,15 @@ public class RecruiterJobPostingService
 
         if (job == null)
             return (RecruiterJobResult.NotFound, null);
-        if (!Enum.TryParse<JobPostingStatus>(requestedStatus, true, out var status))
+        if (!Enum.TryParse<JobPostingStatus>(requestedStatus, true, out var status) ||
+            !Enum.IsDefined(status))
             return (RecruiterJobResult.InvalidStatus, null);
         if (job.Status == JobPostingStatus.Closed && status != JobPostingStatus.Closed)
             return (RecruiterJobResult.ClosedJob, null);
+        if (status == JobPostingStatus.Published &&
+            (!job.ApplicationDeadline.HasValue ||
+             job.ApplicationDeadline.Value < DateOnly.FromDateTime(DateTime.UtcNow)))
+            return (RecruiterJobResult.InvalidDeadline, null);
 
         job.Status = status;
         job.UpdatedAt = DateTime.UtcNow;
@@ -218,8 +275,19 @@ public class RecruiterJobPostingService
             Id = job.Id,
             Title = job.Title,
             Company = job.CompanyEntity?.Name ?? job.Company,
+            CompanyLogoUrl = job.CompanyEntity?.LogoUrl,
             Location = job.Location,
             Description = job.Description,
+            EmploymentType = job.EmploymentType.ToString(),
+            WorkMode = job.WorkMode.ToString(),
+            Responsibilities = job.Responsibilities,
+            Requirements = job.Requirements,
+            ExperienceLevel = job.ExperienceLevel.ToString(),
+            MinExperienceYears = job.MinExperienceYears,
+            MinSalary = job.MinSalary,
+            MaxSalary = job.MaxSalary,
+            Currency = job.Currency,
+            ApplicationDeadline = job.ApplicationDeadline,
             Status = job.Status.ToString(),
             ApplicantCount = job.Applications.Count,
             CreatedAt = job.CreatedAt,
@@ -234,6 +302,59 @@ public class RecruiterJobPostingService
         };
     }
 
-    private static string? Clean(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static RecruiterJobResult ValidateJobDetails(
+        string employmentTypeValue,
+        string workModeValue,
+        string experienceLevelValue,
+        int? minExperienceYears,
+        decimal? minSalary,
+        decimal? maxSalary,
+        string? currency,
+        DateOnly? applicationDeadline,
+        out ValidatedJobDetails details)
+    {
+        details = default;
+
+        if (!Enum.TryParse<EmploymentType>(employmentTypeValue, true, out var employmentType) ||
+            !Enum.IsDefined(employmentType))
+            return RecruiterJobResult.InvalidEmploymentType;
+        if (!Enum.TryParse<WorkMode>(workModeValue, true, out var workMode) ||
+            !Enum.IsDefined(workMode))
+            return RecruiterJobResult.InvalidWorkMode;
+        if (!Enum.TryParse<ExperienceLevel>(experienceLevelValue, true, out var experienceLevel) ||
+            !Enum.IsDefined(experienceLevel))
+            return RecruiterJobResult.InvalidExperienceLevel;
+
+        var isInternship = employmentType == EmploymentType.Internship;
+        if (!isInternship && minExperienceYears == null)
+            return RecruiterJobResult.InvalidExperience;
+
+        if (minSalary.HasValue && maxSalary.HasValue && minSalary > maxSalary)
+            return RecruiterJobResult.InvalidSalary;
+
+        var hasSalary = minSalary.HasValue || maxSalary.HasValue;
+        var normalizedCurrency = hasSalary ? currency?.Trim().ToUpperInvariant() : null;
+        if (hasSalary && string.IsNullOrWhiteSpace(normalizedCurrency))
+            return RecruiterJobResult.InvalidSalary;
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        if (!applicationDeadline.HasValue || applicationDeadline.Value < today)
+            return RecruiterJobResult.InvalidDeadline;
+
+        details = new ValidatedJobDetails(
+            employmentType,
+            workMode,
+            experienceLevel,
+            isInternship ? null : minExperienceYears,
+            normalizedCurrency);
+
+        return RecruiterJobResult.Success;
+    }
+
+    private readonly record struct ValidatedJobDetails(
+        EmploymentType EmploymentType,
+        WorkMode WorkMode,
+        ExperienceLevel ExperienceLevel,
+        int? MinExperienceYears,
+        string? Currency);
 }

@@ -18,9 +18,13 @@ public class JobPostingService
     // from JobSeekers. Recruiter's own management view (later) will show all.
     public async Task<List<JobPostingResponse>> GetPublishedAsync()
     {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var postings = await _context.JobPostings
             .AsNoTracking()
-            .Where(x => x.Status == JobPostingStatus.Published)
+            .Where(x => x.Status == JobPostingStatus.Published &&
+                (!x.CompanyId.HasValue || x.CompanyEntity!.IsActive) &&
+                (!x.ApplicationDeadline.HasValue ||
+                 x.ApplicationDeadline.Value >= today))
             .Include(x => x.CompanyEntity)
             .Include(x => x.RequiredSkills)
                 .ThenInclude(rs => rs.Skill)
@@ -32,12 +36,17 @@ public class JobPostingService
 
     public async Task<JobPostingResponse?> GetPublishedByIdAsync(Guid id)
     {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var posting = await _context.JobPostings
             .AsNoTracking()
             .Include(x => x.CompanyEntity)
             .Include(x => x.RequiredSkills)
                 .ThenInclude(rs => rs.Skill)
-            .FirstOrDefaultAsync(x => x.Id == id && x.Status == JobPostingStatus.Published);
+            .FirstOrDefaultAsync(x => x.Id == id &&
+                x.Status == JobPostingStatus.Published &&
+                (!x.CompanyId.HasValue || x.CompanyEntity!.IsActive) &&
+                (!x.ApplicationDeadline.HasValue ||
+                 x.ApplicationDeadline.Value >= today));
 
         return posting == null ? null : ToResponse(posting);
     }
@@ -49,8 +58,20 @@ public class JobPostingService
             Id = posting.Id,
             Title = posting.Title,
             Company = posting.CompanyEntity?.Name ?? posting.Company,
+            CompanyLogoUrl = posting.CompanyEntity?.LogoUrl,
             Location = posting.Location,
             Description = posting.Description,
+            EmploymentType = posting.EmploymentType.ToString(),
+            WorkMode = posting.WorkMode.ToString(),
+            Responsibilities = posting.Responsibilities,
+            Requirements = posting.Requirements,
+            ExperienceLevel = posting.ExperienceLevel.ToString(),
+            MinExperienceYears = posting.MinExperienceYears,
+            MinSalary = posting.MinSalary,
+            MaxSalary = posting.MaxSalary,
+            Currency = posting.Currency,
+            ApplicationDeadline = posting.ApplicationDeadline,
+            PostedDate = posting.CreatedAt,
             RequiredSkills = posting.RequiredSkills
                 .Select(rs => rs.Skill.Name)
                 .OrderBy(name => name)
