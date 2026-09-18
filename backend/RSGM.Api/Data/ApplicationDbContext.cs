@@ -26,6 +26,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
     public DbSet<Application> Applications => Set<Application>();
 
+    public DbSet<Company> Companies => Set<Company>();
+
+    public DbSet<CompanyMember> CompanyMembers => Set<CompanyMember>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -132,6 +136,80 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
             entity.Property(x => x.Description)
                 .HasMaxLength(2000);
+
+            entity.Property(x => x.Responsibilities)
+                .IsRequired()
+                .HasMaxLength(3000);
+
+            entity.Property(x => x.Requirements)
+                .IsRequired()
+                .HasMaxLength(3000);
+
+            entity.Property(x => x.MinSalary)
+                .HasPrecision(18, 2);
+
+            entity.Property(x => x.MaxSalary)
+                .HasPrecision(18, 2);
+
+            entity.Property(x => x.Currency)
+                .HasMaxLength(3);
+
+            entity.HasIndex(x => x.CompanyId);
+
+            entity.HasIndex(x => x.CreatedByUserId);
+
+            entity.HasOne(x => x.CompanyEntity)
+                .WithMany(x => x.JobPostings)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.CreatedByUser)
+                .WithMany(x => x.CreatedJobPostings)
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Company>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Name)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.Description)
+                .HasMaxLength(1000);
+
+            entity.Property(x => x.Website)
+                .HasMaxLength(300);
+
+            entity.Property(x => x.LogoUrl)
+                .HasMaxLength(500);
+
+            entity.HasIndex(x => x.Name)
+                .IsUnique();
+        });
+
+        builder.Entity<CompanyMember>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            // One staff user belongs to one company in the current system.
+            entity.HasIndex(x => x.UserId)
+                .IsUnique();
+
+            entity.HasIndex(x => new { x.CompanyId, x.UserId })
+                .IsUnique();
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.Members)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.CompanyMemberships)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<JobPostingSkill>(entity =>
@@ -165,7 +243,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(x => x.JobPosting)
-                .WithMany()
+                .WithMany(x => x.Applications)
                 .HasForeignKey(x => x.JobPostingId)
                 .OnDelete(DeleteBehavior.Cascade);
         });

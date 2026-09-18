@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using RSGM.Api.Data;
@@ -11,9 +12,11 @@ using RSGM.Api.Data;
 namespace RSGM.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260918161312_AddCompanyManagement")]
+    partial class AddCompanyManagement
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -336,9 +339,6 @@ namespace RSGM.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<DateOnly?>("ApplicationDeadline")
-                        .HasColumnType("date");
-
                     b.Property<string>("Company")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -353,45 +353,14 @@ namespace RSGM.Api.Migrations
                     b.Property<Guid?>("CreatedByUserId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Currency")
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
                     b.Property<string>("Description")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
-
-                    b.Property<int>("EmploymentType")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ExperienceLevel")
-                        .HasColumnType("integer");
 
                     b.Property<string>("Location")
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
-
-                    b.Property<decimal?>("MaxSalary")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int?>("MinExperienceYears")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal?>("MinSalary")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("Requirements")
-                        .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("character varying(3000)");
-
-                    b.Property<string>("Responsibilities")
-                        .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("character varying(3000)");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -403,9 +372,6 @@ namespace RSGM.Api.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("WorkMode")
-                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 

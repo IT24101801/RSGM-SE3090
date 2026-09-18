@@ -60,6 +60,12 @@ public static class JobPostingSeeder
                 Company = "RSGM Inc.",
                 Location = "Remote",
                 Description = "Build and own core product surfaces using React and TypeScript.",
+                Responsibilities = "Build accessible interfaces, review code, and improve frontend performance.",
+                Requirements = "Strong React, TypeScript, and modern CSS experience.",
+                EmploymentType = EmploymentType.FullTime,
+                WorkMode = WorkMode.Remote,
+                ExperienceLevel = ExperienceLevel.Senior,
+                MinExperienceYears = 5,
                 Skills = new[] { "React", "TypeScript", "Tailwind CSS" }
             },
             new
@@ -68,6 +74,12 @@ public static class JobPostingSeeder
                 Company = "RSGM Inc.",
                 Location = "Remote",
                 Description = "Design and maintain our ASP.NET Core APIs and PostgreSQL data layer.",
+                Responsibilities = "Develop APIs, design database queries, and maintain automated tests.",
+                Requirements = "Experience with C#, ASP.NET Core, and PostgreSQL.",
+                EmploymentType = EmploymentType.FullTime,
+                WorkMode = WorkMode.Remote,
+                ExperienceLevel = ExperienceLevel.Mid,
+                MinExperienceYears = 3,
                 Skills = new[] { "C#", "ASP.NET Core", "PostgreSQL" }
             },
             new
@@ -76,6 +88,12 @@ public static class JobPostingSeeder
                 Company = "Northwind",
                 Location = "Singapore",
                 Description = "Own design systems and cross-platform consistency across our apps.",
+                Responsibilities = "Create prototypes, maintain the design system, and conduct design reviews.",
+                Requirements = "A portfolio demonstrating product design and Figma experience.",
+                EmploymentType = EmploymentType.Contract,
+                WorkMode = WorkMode.Hybrid,
+                ExperienceLevel = ExperienceLevel.Mid,
+                MinExperienceYears = 3,
                 Skills = new[] { "Figma", "Design Systems" }
             },
             new
@@ -84,6 +102,12 @@ public static class JobPostingSeeder
                 Company = "BrightPath",
                 Location = "Singapore",
                 Description = "Work across our React frontend and Node.js backend services.",
+                Responsibilities = "Implement product features across frontend and backend services.",
+                Requirements = "Knowledge of React, JavaScript, Node.js, and REST APIs.",
+                EmploymentType = EmploymentType.FullTime,
+                WorkMode = WorkMode.Hybrid,
+                ExperienceLevel = ExperienceLevel.Junior,
+                MinExperienceYears = 1,
                 Skills = new[] { "React", "JavaScript", "Node.js" }
             }
         };
@@ -96,6 +120,16 @@ public static class JobPostingSeeder
                 Company = p.Company,
                 Location = p.Location,
                 Description = p.Description,
+                Responsibilities = p.Responsibilities,
+                Requirements = p.Requirements,
+                EmploymentType = p.EmploymentType,
+                WorkMode = p.WorkMode,
+                ExperienceLevel = p.ExperienceLevel,
+                MinExperienceYears = p.MinExperienceYears,
+                MinSalary = 100000,
+                MaxSalary = 180000,
+                Currency = "LKR",
+                ApplicationDeadline = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
                 Status = JobPostingStatus.Published
             };
 

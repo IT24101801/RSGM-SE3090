@@ -7,6 +7,7 @@ import {
 
 import {
   BarChart3,
+  Building2,
   FileClock,
   LayoutDashboard,
   ListChecks,
@@ -36,6 +37,11 @@ const NAV_ITEMS = [
     to: "/admin/users",
     label: "Users",
     icon: Users,
+  },
+  {
+    to: "/admin/companies",
+    label: "Companies",
+    icon: Building2,
   },
   {
     to: "/admin/skills",

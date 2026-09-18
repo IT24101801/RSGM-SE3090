@@ -11,4 +11,10 @@ public class ApplicationUser : IdentityUser<Guid>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }
+
+    public ICollection<CompanyMember> CompanyMemberships { get; set; }
+        = new List<CompanyMember>();
+
+    public ICollection<JobPosting> CreatedJobPostings { get; set; }
+        = new List<JobPosting>();
 }

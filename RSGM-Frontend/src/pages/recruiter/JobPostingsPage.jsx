@@ -1,15 +1,32 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  Ban, CircleCheck, Eye, Plus, Sparkles,
+  AlertCircle, Ban, BriefcaseBusiness, CalendarDays, CircleCheck,
+  Eye, Loader2, MapPin, Pencil, Plus, Save, Sparkles, Trash2, X,
 } from "lucide-react";
 
-// TODO: replace with GET /api/recruiter/postings, PATCH /api/recruiter/postings/{id}/status
-const INITIAL_POSTINGS = [
-  { id: "p1", title: "Senior Frontend Engineer", location: "Remote", applicants: 24, status: "Published" },
-  { id: "p2", title: "Product Designer", location: "Singapore", applicants: 12, status: "Published" },
-  { id: "p3", title: "Data Analyst", location: "Singapore", applicants: 0, status: "Draft" },
-  { id: "p4", title: "Backend Engineer", location: "Remote", applicants: 31, status: "Closed" },
+import { getSkills } from "../../services/skillService";
+import {
+  createRecruiterJobPosting,
+  deleteRecruiterJobPosting,
+  getRecruiterJobPostings,
+  updateRecruiterJobPosting,
+  updateRecruiterJobStatus,
+} from "../../services/recruiterJobPostingService";
+
+const EMPLOYMENT_TYPES = [
+  ["FullTime", "Full-Time"],
+  ["PartTime", "Part-Time"],
+  ["Contract", "Contract"],
+  ["Internship", "Internship"],
 ];
+
+const WORK_MODES = [
+  ["OnSite", "On-site"],
+  ["Remote", "Remote"],
+  ["Hybrid", "Hybrid"],
+];
+
+const EXPERIENCE_LEVELS = ["Entry", "Junior", "Mid", "Senior"];
 
 const STATUS_STYLES = {
   Published: "bg-emerald-50 text-emerald-600",
@@ -17,18 +34,166 @@ const STATUS_STYLES = {
   Closed: "bg-red-50 text-red-600",
 };
 
-function JobPostingsPage() {
-  const [postings, setPostings] = useState(INITIAL_POSTINGS);
+function defaultDeadline() {
+  const date = new Date();
+  date.setDate(date.getDate() + 30);
+  return date.toISOString().slice(0, 10);
+}
 
-  const toggleStatus = (id) => {
-    setPostings((prev) =>
-      prev.map((p) => {
-        if (p.id !== id) return p;
-        if (p.status === "Draft") return { ...p, status: "Published" };
-        if (p.status === "Published") return { ...p, status: "Closed" };
-        return p;
+function emptyForm() {
+  return {
+    title: "",
+    location: "",
+    employmentType: "FullTime",
+    workMode: "OnSite",
+    description: "",
+    responsibilities: "",
+    requirements: "",
+    experienceLevel: "Entry",
+    minExperienceYears: "0",
+    minSalary: "",
+    maxSalary: "",
+    currency: "LKR",
+    applicationDeadline: defaultDeadline(),
+    skillIds: [],
+  };
+}
+
+function toPayload(form) {
+  const hasSalary = form.minSalary !== "" || form.maxSalary !== "";
+  return {
+    ...form,
+    minExperienceYears: form.employmentType === "Internship"
+      ? null
+      : Number(form.minExperienceYears),
+    minSalary: form.minSalary === "" ? null : Number(form.minSalary),
+    maxSalary: form.maxSalary === "" ? null : Number(form.maxSalary),
+    currency: hasSalary ? form.currency.trim().toUpperCase() : null,
+  };
+}
+
+function JobPostingsPage() {
+  const [postings, setPostings] = useState([]);
+  const [skills, setSkills] = useState([]);
+  const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let ignore = false;
+    Promise.all([getRecruiterJobPostings(), getSkills()])
+      .then(([jobData, skillData]) => {
+        if (!ignore) {
+          setPostings(jobData);
+          setSkills(skillData.filter((skill) => skill.isActive));
+        }
       })
-    );
+      .catch((requestError) => {
+        if (!ignore) setError(requestError.message || "Unable to load job postings.");
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+    return () => { ignore = true; };
+  }, []);
+
+  const openCreate = () => {
+    setEditingId(null);
+    setForm(emptyForm());
+    setShowForm(true);
+    setError("");
+  };
+
+  const openEdit = (posting) => {
+    setEditingId(posting.id);
+    setForm({
+      title: posting.title,
+      location: posting.location,
+      employmentType: posting.employmentType,
+      workMode: posting.workMode,
+      description: posting.description ?? "",
+      responsibilities: posting.responsibilities ?? "",
+      requirements: posting.requirements ?? "",
+      experienceLevel: posting.experienceLevel,
+      minExperienceYears: posting.minExperienceYears?.toString() ?? "",
+      minSalary: posting.minSalary?.toString() ?? "",
+      maxSalary: posting.maxSalary?.toString() ?? "",
+      currency: posting.currency ?? "LKR",
+      applicationDeadline: posting.applicationDeadline ?? "",
+      skillIds: posting.requiredSkills.map((skill) => skill.id),
+    });
+    setShowForm(true);
+    setError("");
+  };
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const payload = toPayload(form);
+      const saved = editingId
+        ? await updateRecruiterJobPosting(editingId, payload)
+        : await createRecruiterJobPosting(payload);
+      setPostings((current) => current.some((item) => item.id === saved.id)
+        ? current.map((item) => item.id === saved.id ? saved : item)
+        : [saved, ...current]);
+      setShowForm(false);
+    } catch (requestError) {
+      setError(requestError.message || "Unable to save job posting.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const changeStatus = async (posting, status) => {
+    setBusyId(posting.id);
+    setError("");
+    try {
+      const updated = await updateRecruiterJobStatus(posting.id, status);
+      setPostings((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (requestError) {
+      setError(requestError.message || "Unable to change job status.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (posting) => {
+    if (!window.confirm(`Delete ${posting.title}?`)) return;
+    setBusyId(posting.id);
+    setError("");
+    try {
+      await deleteRecruiterJobPosting(posting.id);
+      setPostings((current) => current.filter((item) => item.id !== posting.id));
+    } catch (requestError) {
+      setError(requestError.message || "Unable to delete job posting.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const toggleSkill = (skillId) => {
+    setForm((current) => ({
+      ...current,
+      skillIds: current.skillIds.includes(skillId)
+        ? current.skillIds.filter((id) => id !== skillId)
+        : [...current.skillIds, skillId],
+    }));
+  };
+
+  const changeEmploymentType = (employmentType) => {
+    setForm((current) => ({
+      ...current,
+      employmentType,
+      minExperienceYears: employmentType === "Internship"
+        ? ""
+        : current.minExperienceYears || "0",
+    }));
   };
 
   return (
@@ -36,66 +201,252 @@ function JobPostingsPage() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 text-[11px] font-semibold">
-            <Sparkles size={12} />
-            JOB POSTINGS
+            <Sparkles size={12} /> JOB POSTINGS
           </div>
-          <h1 className="mt-4 text-3xl sm:text-4xl font-semibold tracking-tight">Job Postings</h1>
-          <p className="mt-2 text-neutral-500">
-            Publish approved requisitions and track applicant volume.
-          </p>
+          <h1 className="mt-4 text-3xl sm:text-4xl font-semibold tracking-tight">My Job Postings</h1>
+          <p className="mt-2 text-neutral-500">Create and manage jobs belonging to your company.</p>
         </div>
-
-        <button className="h-12 px-5 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-neutral-800 active:scale-[0.99] transition shrink-0">
-          <Plus size={16} />
-          New posting
+        <button type="button" onClick={openCreate}
+          className="h-12 px-5 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center justify-center gap-2">
+          <Plus size={16} /> New posting
         </button>
       </div>
 
-      <div className="mt-8 grid sm:grid-cols-2 gap-5">
-        {postings.map((p) => (
-          <div
-            key={p.id}
-            className="rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30 p-6"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-semibold text-neutral-900">{p.title}</p>
-                <p className="mt-1 text-sm text-neutral-500">{p.location}</p>
-              </div>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-medium shrink-0 ${STATUS_STYLES[p.status]}`}>
-                {p.status}
-              </span>
-            </div>
+      {error && (
+        <div className="mt-5 flex gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
+          <AlertCircle size={17} className="shrink-0 mt-0.5" /> {error}
+        </div>
+      )}
 
-            <div className="mt-4 flex items-center gap-2 text-sm text-neutral-500">
-              <Eye size={14} />
-              {p.applicants} applicant{p.applicants !== 1 ? "s" : ""}
-            </div>
+      {showForm && (
+        <form onSubmit={submit} className="mt-6 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">{editingId ? "Edit job posting" : "Create job posting"}</h2>
+            <button type="button" onClick={() => setShowForm(false)}><X size={18} /></button>
+          </div>
 
-            <div className="mt-5 flex items-center gap-2">
-              {p.status !== "Closed" && (
-                <button
-                  onClick={() => toggleStatus(p.id)}
-                  className="h-10 px-4 rounded-xl border border-neutral-200 text-sm font-semibold text-neutral-600 hover:bg-neutral-100 transition flex items-center gap-2"
-                >
-                  {p.status === "Draft" ? (
-                    <>
-                      <CircleCheck size={14} />
-                      Publish
-                    </>
-                  ) : (
-                    <>
-                      <Ban size={14} />
-                      Close
-                    </>
-                  )}
-                </button>
-              )}
+          <div className="mt-1 grid sm:grid-cols-2 gap-x-4">
+            <Field label="Job title *">
+              <input required maxLength={150} value={form.title}
+                onChange={(event) => setForm({ ...form, title: event.target.value })}
+                placeholder="Software Engineer" className={inputClass} />
+            </Field>
+            <Field label="Location *">
+              <input required maxLength={150} value={form.location}
+                onChange={(event) => setForm({ ...form, location: event.target.value })}
+                placeholder="Colombo, Sri Lanka" className={inputClass} />
+            </Field>
+            <Field label="Employment type *">
+              <select value={form.employmentType}
+                onChange={(event) => changeEmploymentType(event.target.value)} className={inputClass}>
+                {EMPLOYMENT_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </Field>
+            <Field label="Work mode *">
+              <select value={form.workMode}
+                onChange={(event) => setForm({ ...form, workMode: event.target.value })} className={inputClass}>
+                {WORK_MODES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </Field>
+            <Field label="Experience level *">
+              <select value={form.experienceLevel}
+                onChange={(event) => setForm({ ...form, experienceLevel: event.target.value })} className={inputClass}>
+                {EXPERIENCE_LEVELS.map((level) => <option key={level}>{level}</option>)}
+              </select>
+            </Field>
+            {form.employmentType !== "Internship" && (
+              <Field label="Minimum experience (years) *">
+                <input required type="number" min="0" max="50" value={form.minExperienceYears}
+                  onChange={(event) => setForm({ ...form, minExperienceYears: event.target.value })}
+                  className={inputClass} />
+              </Field>
+            )}
+            <Field label="Application deadline *">
+              <input required type="date" min={new Date().toISOString().slice(0, 10)}
+                value={form.applicationDeadline}
+                onChange={(event) => setForm({ ...form, applicationDeadline: event.target.value })}
+                className={inputClass} />
+            </Field>
+          </div>
+
+          <Field label="Description *">
+            <textarea required maxLength={2000} rows={4} value={form.description}
+              onChange={(event) => setForm({ ...form, description: event.target.value })}
+              className={`${inputClass} mt-2 h-auto py-3`} />
+          </Field>
+          <div className="grid sm:grid-cols-2 gap-x-4">
+            <Field label="Responsibilities *">
+              <textarea required maxLength={3000} rows={5} value={form.responsibilities}
+                onChange={(event) => setForm({ ...form, responsibilities: event.target.value })}
+                placeholder="Develop APIs, review code..." className={`${inputClass} h-auto py-3`} />
+            </Field>
+            <Field label="Requirements *">
+              <textarea required maxLength={3000} rows={5} value={form.requirements}
+                onChange={(event) => setForm({ ...form, requirements: event.target.value })}
+                placeholder="C#, .NET, SQL..." className={`${inputClass} h-auto py-3`} />
+            </Field>
+          </div>
+
+          <div className="mt-5 rounded-xl bg-neutral-50 p-4">
+            <p className="text-sm font-semibold text-neutral-700">Salary (optional)</p>
+            <div className="grid sm:grid-cols-3 gap-x-4">
+              <Field label="Minimum salary">
+                <input type="number" min="0" step="0.01" value={form.minSalary}
+                  onChange={(event) => setForm({ ...form, minSalary: event.target.value })}
+                  className={inputClass} />
+              </Field>
+              <Field label="Maximum salary">
+                <input type="number" min="0" step="0.01" value={form.maxSalary}
+                  onChange={(event) => setForm({ ...form, maxSalary: event.target.value })}
+                  className={inputClass} />
+              </Field>
+              <Field label="Currency">
+                <input maxLength={3} value={form.currency}
+                  onChange={(event) => setForm({ ...form, currency: event.target.value.toUpperCase() })}
+                  placeholder="LKR" className={inputClass} />
+              </Field>
             </div>
           </div>
-        ))}
-      </div>
+
+          <div className="mt-5">
+            <p className="text-sm font-medium text-neutral-600">Required skills</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {skills.map((skill) => {
+                const selected = form.skillIds.includes(skill.id);
+                return (
+                  <button key={skill.id} type="button" onClick={() => toggleSkill(skill.id)}
+                    className={`px-3 py-1.5 rounded-full border text-xs font-medium ${selected
+                      ? "border-blue-500 bg-blue-50 text-blue-600"
+                      : "border-neutral-200 text-neutral-500"}`}>
+                    {skill.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <button disabled={saving}
+            className="mt-6 h-11 px-5 rounded-xl bg-blue-600 text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+            Save as draft
+          </button>
+        </form>
+      )}
+
+      {loading ? (
+        <div className="py-20 text-center text-neutral-400">
+          <Loader2 size={20} className="inline animate-spin mr-2" /> Loading job postings...
+        </div>
+      ) : (
+        <div className="mt-8 grid sm:grid-cols-2 gap-5">
+          {postings.map((posting) => (
+            <article key={posting.id}
+              className="rounded-2xl border border-white/70 bg-white/80 shadow-xl shadow-neutral-200/30 p-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <CompanyLogo posting={posting} />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-neutral-900">{posting.title}</p>
+                    <p className="mt-1 text-sm text-neutral-500">{posting.company}</p>
+                  </div>
+                </div>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_STYLES[posting.status]}`}>
+                  {posting.status}
+                </span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3 text-xs text-neutral-500">
+                <span className="inline-flex items-center gap-1"><MapPin size={13} />{posting.location}</span>
+                <span className="inline-flex items-center gap-1"><BriefcaseBusiness size={13} />{labelFor(EMPLOYMENT_TYPES, posting.employmentType)} · {labelFor(WORK_MODES, posting.workMode)}</span>
+                <span className="inline-flex items-center gap-1"><CalendarDays size={13} />Deadline {formatDate(posting.applicationDeadline)}</span>
+              </div>
+              {posting.description && <p className="mt-4 text-sm text-neutral-500 line-clamp-2">{posting.description}</p>}
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {posting.requiredSkills.map((skill) => (
+                  <span key={skill.id} className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-xs">
+                    {skill.name}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-4 text-xs text-neutral-500">
+                {posting.employmentType === "Internship"
+                  ? "No experience required"
+                  : `${posting.minExperienceYears} year${posting.minExperienceYears === 1 ? "" : "s"} minimum experience`}
+                {formatSalary(posting) && ` · ${formatSalary(posting)}`}
+              </p>
+              <div className="mt-4 flex items-center gap-2 text-sm text-neutral-500">
+                <Eye size={14} /> {posting.applicantCount} applicant{posting.applicantCount !== 1 ? "s" : ""}
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {posting.status !== "Closed" && <ActionButton onClick={() => openEdit(posting)} icon={Pencil} text="Edit" />}
+                {posting.status === "Draft" && (
+                  <ActionButton onClick={() => changeStatus(posting, "Published")}
+                    icon={CircleCheck} text="Publish" disabled={busyId === posting.id} />
+                )}
+                {posting.status === "Published" && (
+                  <ActionButton onClick={() => changeStatus(posting, "Closed")}
+                    icon={Ban} text="Close" disabled={busyId === posting.id} />
+                )}
+                <ActionButton onClick={() => remove(posting)} icon={Trash2} text="Delete"
+                  danger disabled={busyId === posting.id} />
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {!loading && postings.length === 0 && (
+        <div className="mt-8 py-16 text-center rounded-2xl border border-dashed border-neutral-300 text-neutral-400">
+          You have not created any job postings yet.
+        </div>
+      )}
     </div>
+  );
+}
+
+const inputClass = "mt-2 w-full h-11 rounded-xl border border-neutral-200 bg-white px-4 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100";
+
+function Field({ label, children }) {
+  return <label className="mt-4 block text-sm font-medium text-neutral-600"><span>{label}</span>{children}</label>;
+}
+
+function CompanyLogo({ posting }) {
+  if (posting.companyLogoUrl) {
+    return <img src={posting.companyLogoUrl} alt={`${posting.company} logo`}
+      className="w-11 h-11 rounded-xl border border-neutral-100 bg-white object-contain p-1 shrink-0" />;
+  }
+  return (
+    <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-semibold shrink-0">
+      {posting.company?.charAt(0)?.toUpperCase() || "C"}
+    </div>
+  );
+}
+
+function labelFor(options, value) {
+  return options.find(([option]) => option === value)?.[1] ?? value;
+}
+
+function formatDate(value) {
+  if (!value) return "Not set";
+  return new Date(`${value}T00:00:00`).toLocaleDateString();
+}
+
+function formatSalary(posting) {
+  if (posting.minSalary == null && posting.maxSalary == null) return "";
+  const formatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+  const min = posting.minSalary == null ? "" : formatter.format(posting.minSalary);
+  const max = posting.maxSalary == null ? "" : formatter.format(posting.maxSalary);
+  const range = min && max ? `${min}–${max}` : min || max;
+  return `${posting.currency ?? ""} ${range}`.trim();
+}
+
+function ActionButton({ onClick, icon: Icon, text, danger = false, disabled = false }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled}
+      className={`h-9 px-3 rounded-lg border text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 ${danger
+        ? "border-red-200 text-red-600 hover:bg-red-50"
+        : "border-neutral-200 text-neutral-600 hover:bg-neutral-50"}`}>
+      <Icon size={13} /> {text}
+    </button>
   );
 }
 
