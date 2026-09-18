@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
-  AlertCircle, Ban, CircleCheck, Eye, Loader2, Pencil,
-  Plus, Save, Sparkles, Trash2, X,
+  AlertCircle, Ban, BriefcaseBusiness, CalendarDays, CircleCheck,
+  Eye, Loader2, MapPin, Pencil, Plus, Save, Sparkles, Trash2, X,
 } from "lucide-react";
 
 import { getSkills } from "../../services/skillService";
@@ -13,7 +13,20 @@ import {
   updateRecruiterJobStatus,
 } from "../../services/recruiterJobPostingService";
 
-const EMPTY_FORM = { title: "", location: "", description: "", skillIds: [] };
+const EMPLOYMENT_TYPES = [
+  ["FullTime", "Full-Time"],
+  ["PartTime", "Part-Time"],
+  ["Contract", "Contract"],
+  ["Internship", "Internship"],
+];
+
+const WORK_MODES = [
+  ["OnSite", "On-site"],
+  ["Remote", "Remote"],
+  ["Hybrid", "Hybrid"],
+];
+
+const EXPERIENCE_LEVELS = ["Entry", "Junior", "Mid", "Senior"];
 
 const STATUS_STYLES = {
   Published: "bg-emerald-50 text-emerald-600",
@@ -21,10 +34,48 @@ const STATUS_STYLES = {
   Closed: "bg-red-50 text-red-600",
 };
 
+function defaultDeadline() {
+  const date = new Date();
+  date.setDate(date.getDate() + 30);
+  return date.toISOString().slice(0, 10);
+}
+
+function emptyForm() {
+  return {
+    title: "",
+    location: "",
+    employmentType: "FullTime",
+    workMode: "OnSite",
+    description: "",
+    responsibilities: "",
+    requirements: "",
+    experienceLevel: "Entry",
+    minExperienceYears: "0",
+    minSalary: "",
+    maxSalary: "",
+    currency: "LKR",
+    applicationDeadline: defaultDeadline(),
+    skillIds: [],
+  };
+}
+
+function toPayload(form) {
+  const hasSalary = form.minSalary !== "" || form.maxSalary !== "";
+  return {
+    ...form,
+    minExperienceYears: form.employmentType === "Internship"
+      ? null
+      : Number(form.minExperienceYears),
+    minSalary: form.minSalary === "" ? null : Number(form.minSalary),
+    maxSalary: form.maxSalary === "" ? null : Number(form.maxSalary),
+    currency: hasSalary ? form.currency.trim().toUpperCase() : null,
+  };
+}
+
 function JobPostingsPage() {
   const [postings, setPostings] = useState([]);
   const [skills, setSkills] = useState([]);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -52,7 +103,7 @@ function JobPostingsPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    setForm(emptyForm());
     setShowForm(true);
     setError("");
   };
@@ -62,7 +113,17 @@ function JobPostingsPage() {
     setForm({
       title: posting.title,
       location: posting.location,
+      employmentType: posting.employmentType,
+      workMode: posting.workMode,
       description: posting.description ?? "",
+      responsibilities: posting.responsibilities ?? "",
+      requirements: posting.requirements ?? "",
+      experienceLevel: posting.experienceLevel,
+      minExperienceYears: posting.minExperienceYears?.toString() ?? "",
+      minSalary: posting.minSalary?.toString() ?? "",
+      maxSalary: posting.maxSalary?.toString() ?? "",
+      currency: posting.currency ?? "LKR",
+      applicationDeadline: posting.applicationDeadline ?? "",
       skillIds: posting.requiredSkills.map((skill) => skill.id),
     });
     setShowForm(true);
@@ -74,9 +135,10 @@ function JobPostingsPage() {
     setSaving(true);
     setError("");
     try {
+      const payload = toPayload(form);
       const saved = editingId
-        ? await updateRecruiterJobPosting(editingId, form)
-        : await createRecruiterJobPosting(form);
+        ? await updateRecruiterJobPosting(editingId, payload)
+        : await createRecruiterJobPosting(payload);
       setPostings((current) => current.some((item) => item.id === saved.id)
         ? current.map((item) => item.id === saved.id ? saved : item)
         : [saved, ...current]);
@@ -124,6 +186,16 @@ function JobPostingsPage() {
     }));
   };
 
+  const changeEmploymentType = (employmentType) => {
+    setForm((current) => ({
+      ...current,
+      employmentType,
+      minExperienceYears: employmentType === "Internship"
+        ? ""
+        : current.minExperienceYears || "0",
+    }));
+  };
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -132,7 +204,7 @@ function JobPostingsPage() {
             <Sparkles size={12} /> JOB POSTINGS
           </div>
           <h1 className="mt-4 text-3xl sm:text-4xl font-semibold tracking-tight">My Job Postings</h1>
-          <p className="mt-2 text-neutral-500">You can only view and manage jobs created by your account.</p>
+          <p className="mt-2 text-neutral-500">Create and manage jobs belonging to your company.</p>
         </div>
         <button type="button" onClick={openCreate}
           className="h-12 px-5 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center justify-center gap-2">
@@ -152,24 +224,91 @@ function JobPostingsPage() {
             <h2 className="font-semibold">{editingId ? "Edit job posting" : "Create job posting"}</h2>
             <button type="button" onClick={() => setShowForm(false)}><X size={18} /></button>
           </div>
-          <div className="mt-5 grid sm:grid-cols-2 gap-4">
+
+          <div className="mt-1 grid sm:grid-cols-2 gap-x-4">
             <Field label="Job title *">
               <input required maxLength={150} value={form.title}
                 onChange={(event) => setForm({ ...form, title: event.target.value })}
-                className={inputClass} />
+                placeholder="Software Engineer" className={inputClass} />
             </Field>
             <Field label="Location *">
               <input required maxLength={150} value={form.location}
                 onChange={(event) => setForm({ ...form, location: event.target.value })}
-                placeholder="Remote or city" className={inputClass} />
+                placeholder="Colombo, Sri Lanka" className={inputClass} />
+            </Field>
+            <Field label="Employment type *">
+              <select value={form.employmentType}
+                onChange={(event) => changeEmploymentType(event.target.value)} className={inputClass}>
+                {EMPLOYMENT_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </Field>
+            <Field label="Work mode *">
+              <select value={form.workMode}
+                onChange={(event) => setForm({ ...form, workMode: event.target.value })} className={inputClass}>
+                {WORK_MODES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </Field>
+            <Field label="Experience level *">
+              <select value={form.experienceLevel}
+                onChange={(event) => setForm({ ...form, experienceLevel: event.target.value })} className={inputClass}>
+                {EXPERIENCE_LEVELS.map((level) => <option key={level}>{level}</option>)}
+              </select>
+            </Field>
+            {form.employmentType !== "Internship" && (
+              <Field label="Minimum experience (years) *">
+                <input required type="number" min="0" max="50" value={form.minExperienceYears}
+                  onChange={(event) => setForm({ ...form, minExperienceYears: event.target.value })}
+                  className={inputClass} />
+              </Field>
+            )}
+            <Field label="Application deadline *">
+              <input required type="date" min={new Date().toISOString().slice(0, 10)}
+                value={form.applicationDeadline}
+                onChange={(event) => setForm({ ...form, applicationDeadline: event.target.value })}
+                className={inputClass} />
             </Field>
           </div>
-          <Field label="Description">
-            <textarea maxLength={2000} rows={4} value={form.description}
+
+          <Field label="Description *">
+            <textarea required maxLength={2000} rows={4} value={form.description}
               onChange={(event) => setForm({ ...form, description: event.target.value })}
               className={`${inputClass} mt-2 h-auto py-3`} />
           </Field>
-          <div className="mt-4">
+          <div className="grid sm:grid-cols-2 gap-x-4">
+            <Field label="Responsibilities *">
+              <textarea required maxLength={3000} rows={5} value={form.responsibilities}
+                onChange={(event) => setForm({ ...form, responsibilities: event.target.value })}
+                placeholder="Develop APIs, review code..." className={`${inputClass} h-auto py-3`} />
+            </Field>
+            <Field label="Requirements *">
+              <textarea required maxLength={3000} rows={5} value={form.requirements}
+                onChange={(event) => setForm({ ...form, requirements: event.target.value })}
+                placeholder="C#, .NET, SQL..." className={`${inputClass} h-auto py-3`} />
+            </Field>
+          </div>
+
+          <div className="mt-5 rounded-xl bg-neutral-50 p-4">
+            <p className="text-sm font-semibold text-neutral-700">Salary (optional)</p>
+            <div className="grid sm:grid-cols-3 gap-x-4">
+              <Field label="Minimum salary">
+                <input type="number" min="0" step="0.01" value={form.minSalary}
+                  onChange={(event) => setForm({ ...form, minSalary: event.target.value })}
+                  className={inputClass} />
+              </Field>
+              <Field label="Maximum salary">
+                <input type="number" min="0" step="0.01" value={form.maxSalary}
+                  onChange={(event) => setForm({ ...form, maxSalary: event.target.value })}
+                  className={inputClass} />
+              </Field>
+              <Field label="Currency">
+                <input maxLength={3} value={form.currency}
+                  onChange={(event) => setForm({ ...form, currency: event.target.value.toUpperCase() })}
+                  placeholder="LKR" className={inputClass} />
+              </Field>
+            </div>
+          </div>
+
+          <div className="mt-5">
             <p className="text-sm font-medium text-neutral-600">Required skills</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {skills.map((skill) => {
@@ -185,6 +324,7 @@ function JobPostingsPage() {
               })}
             </div>
           </div>
+
           <button disabled={saving}
             className="mt-6 h-11 px-5 rounded-xl bg-blue-600 text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
@@ -203,13 +343,21 @@ function JobPostingsPage() {
             <article key={posting.id}
               className="rounded-2xl border border-white/70 bg-white/80 shadow-xl shadow-neutral-200/30 p-6">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-neutral-900">{posting.title}</p>
-                  <p className="mt-1 text-sm text-neutral-500">{posting.company} · {posting.location}</p>
+                <div className="flex items-start gap-3 min-w-0">
+                  <CompanyLogo posting={posting} />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-neutral-900">{posting.title}</p>
+                    <p className="mt-1 text-sm text-neutral-500">{posting.company}</p>
+                  </div>
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_STYLES[posting.status]}`}>
                   {posting.status}
                 </span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3 text-xs text-neutral-500">
+                <span className="inline-flex items-center gap-1"><MapPin size={13} />{posting.location}</span>
+                <span className="inline-flex items-center gap-1"><BriefcaseBusiness size={13} />{labelFor(EMPLOYMENT_TYPES, posting.employmentType)} · {labelFor(WORK_MODES, posting.workMode)}</span>
+                <span className="inline-flex items-center gap-1"><CalendarDays size={13} />Deadline {formatDate(posting.applicationDeadline)}</span>
               </div>
               {posting.description && <p className="mt-4 text-sm text-neutral-500 line-clamp-2">{posting.description}</p>}
               <div className="mt-4 flex flex-wrap gap-1.5">
@@ -219,6 +367,12 @@ function JobPostingsPage() {
                   </span>
                 ))}
               </div>
+              <p className="mt-4 text-xs text-neutral-500">
+                {posting.employmentType === "Internship"
+                  ? "No experience required"
+                  : `${posting.minExperienceYears} year${posting.minExperienceYears === 1 ? "" : "s"} minimum experience`}
+                {formatSalary(posting) && ` · ${formatSalary(posting)}`}
+              </p>
               <div className="mt-4 flex items-center gap-2 text-sm text-neutral-500">
                 <Eye size={14} /> {posting.applicantCount} applicant{posting.applicantCount !== 1 ? "s" : ""}
               </div>
@@ -249,10 +403,40 @@ function JobPostingsPage() {
   );
 }
 
-const inputClass = "w-full h-11 rounded-xl border border-neutral-200 px-4 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100";
+const inputClass = "mt-2 w-full h-11 rounded-xl border border-neutral-200 bg-white px-4 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100";
 
 function Field({ label, children }) {
   return <label className="mt-4 block text-sm font-medium text-neutral-600"><span>{label}</span>{children}</label>;
+}
+
+function CompanyLogo({ posting }) {
+  if (posting.companyLogoUrl) {
+    return <img src={posting.companyLogoUrl} alt={`${posting.company} logo`}
+      className="w-11 h-11 rounded-xl border border-neutral-100 bg-white object-contain p-1 shrink-0" />;
+  }
+  return (
+    <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-semibold shrink-0">
+      {posting.company?.charAt(0)?.toUpperCase() || "C"}
+    </div>
+  );
+}
+
+function labelFor(options, value) {
+  return options.find(([option]) => option === value)?.[1] ?? value;
+}
+
+function formatDate(value) {
+  if (!value) return "Not set";
+  return new Date(`${value}T00:00:00`).toLocaleDateString();
+}
+
+function formatSalary(posting) {
+  if (posting.minSalary == null && posting.maxSalary == null) return "";
+  const formatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+  const min = posting.minSalary == null ? "" : formatter.format(posting.minSalary);
+  const max = posting.maxSalary == null ? "" : formatter.format(posting.maxSalary);
+  const range = min && max ? `${min}–${max}` : min || max;
+  return `${posting.currency ?? ""} ${range}`.trim();
 }
 
 function ActionButton({ onClick, icon: Icon, text, danger = false, disabled = false }) {
