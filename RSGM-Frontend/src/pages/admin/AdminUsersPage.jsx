@@ -446,7 +446,7 @@ function AdminUsersPage() {
                           event.target.value
                         )
                       }
-                      className="h-10 min-w-[150px] rounded-xl border border-neutral-200 bg-white px-3 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="h-10 min-w-37.5 rounded-xl border border-neutral-200 bg-white px-3 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <option value="">
                         Select role
@@ -488,7 +488,7 @@ function AdminUsersPage() {
                             event.target.value
                           )
                         }
-                        className="h-10 min-w-[180px] rounded-xl border border-neutral-200 bg-white px-3 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+                        className="h-10 min-w-45 rounded-xl border border-neutral-200 bg-white px-3 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
                       >
                         <option value="">
                           No company
