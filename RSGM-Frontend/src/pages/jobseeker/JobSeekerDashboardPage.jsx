@@ -17,7 +17,7 @@ import {
 function JobSeekerDashboardPage() {
   const [dashboard, setDashboard] = useState({
     fullName: "",
-    profileCompletion: 0,
+    profileCompleteness: 0,
     totalApplications: 0,
     activeApplications: 0,
     shortlistedApplications: 0,
@@ -42,8 +42,8 @@ function JobSeekerDashboardPage() {
       setDashboard({
         fullName:
           data.fullName ?? "",
-        profileCompletion:
-          data.profileCompletion ?? 0,
+        profileCompleteness:
+          data.profileCompleteness ?? 0,
         totalApplications:
           data.totalApplications ?? 0,
         activeApplications:
@@ -159,7 +159,7 @@ function JobSeekerDashboardPage() {
           </div>
 
           <span className="text-lg font-semibold">
-            {dashboard.profileCompletion}%
+            {dashboard.profileCompleteness}%
           </span>
         </div>
 
@@ -169,12 +169,12 @@ function JobSeekerDashboardPage() {
             style={{
               width: `${Math.min(
                 Math.max(
-                  dashboard.profileCompletion,
+                  dashboard.profileCompleteness,
                   0
                 ),
                 100
               )}%`,
-            }}
+}}
           />
         </div>
       </section>
