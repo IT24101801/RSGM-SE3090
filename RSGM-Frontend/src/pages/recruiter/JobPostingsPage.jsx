@@ -65,9 +65,8 @@ function toPayload(form) {
   const hasSalary = form.minSalary !== "" || form.maxSalary !== "";
   return {
     ...form,
-    minExperienceYears: form.employmentType === "Internship"
-      ? null
-      : Number(form.minExperienceYears),
+    minExperienceYears: form.employmentType === "Internship" ||
+      form.minExperienceYears === "" ? null : Number(form.minExperienceYears),
     minSalary: form.minSalary === "" ? null : Number(form.minSalary),
     maxSalary: form.maxSalary === "" ? null : Number(form.maxSalary),
     currency: hasSalary ? form.currency.trim().toUpperCase() : null,
@@ -312,8 +311,8 @@ function JobPostingsPage() {
               </select>
             </Field>
             {form.employmentType !== "Internship" && (
-              <Field label="Minimum experience (years) *">
-                <input required readOnly={Boolean(form.jobRequisitionId)} type="number" min="0" max="50" value={form.minExperienceYears}
+              <Field label={`Minimum experience (years)${form.experienceLevel === "Entry" ? "" : " *"}`}>
+                <input required={form.experienceLevel !== "Entry"} readOnly={Boolean(form.jobRequisitionId)} type="number" min="0" max="50" value={form.minExperienceYears}
                   onChange={(event) => setForm({ ...form, minExperienceYears: event.target.value })}
                   className={inputClass} />
               </Field>

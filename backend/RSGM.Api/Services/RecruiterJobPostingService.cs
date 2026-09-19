@@ -396,7 +396,8 @@ public class RecruiterJobPostingService
             return RecruiterJobResult.InvalidExperienceLevel;
 
         var isInternship = employmentType == EmploymentType.Internship;
-        if (!isInternship && minExperienceYears == null)
+        if (!isInternship && experienceLevel != ExperienceLevel.Entry &&
+            minExperienceYears == null)
             return RecruiterJobResult.InvalidExperience;
 
         if (minSalary.HasValue && maxSalary.HasValue && minSalary > maxSalary)
