@@ -43,12 +43,17 @@ public class JobSeekerApplicationService
         Guid userId,
         CreateApplicationRequest request)
     {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var posting = await _context.JobPostings
+            .Include(x => x.CompanyEntity)
             .Include(x => x.RequiredSkills)
                 .ThenInclude(rs => rs.Skill)
             .FirstOrDefaultAsync(x =>
                 x.Id == request.JobPostingId &&
-                x.Status == JobPostingStatus.Published);
+                x.Status == JobPostingStatus.Published &&
+                (!x.CompanyId.HasValue || x.CompanyEntity!.IsActive) &&
+                (!x.ApplicationDeadline.HasValue ||
+                 x.ApplicationDeadline.Value >= today));
 
         if (posting == null)
         {

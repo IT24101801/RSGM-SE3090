@@ -67,6 +67,42 @@ public class JobSeekerProfileController : ControllerBase
         return Ok(updated);
     }
 
+    [HttpPut("password")]
+    public async Task<IActionResult> ChangePassword(
+        ChangePasswordDto request)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+
+        var (result, errors) = await _profileService.ChangePasswordAsync(userId.Value, request);
+
+        switch (result)
+        {
+            case ChangePasswordResult.UserNotFound:
+                return NotFound(new
+                {
+                    message = "Profile not found."
+                });
+
+            case ChangePasswordResult.Failed:
+                return BadRequest(new
+                {
+                    message = "Could not update password.",
+                    errors
+                });
+
+            default:
+                return Ok(new
+                {
+                    message = "Password updated successfully."
+                });
+        }
+    }
+
     private Guid? GetCurrentUserId()
     {
         var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);

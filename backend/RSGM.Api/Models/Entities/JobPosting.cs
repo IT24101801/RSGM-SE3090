@@ -7,30 +7,67 @@ public enum JobPostingStatus
     Closed
 }
 
+public enum EmploymentType
+{
+    FullTime,
+    PartTime,
+    Contract,
+    Internship
+}
+
+public enum WorkMode
+{
+    OnSite,
+    Remote,
+    Hybrid
+}
+
+public enum ExperienceLevel
+{
+    Entry,
+    Junior,
+    Mid,
+    Senior
+}
+
 public class JobPosting
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
     public string Title { get; set; } = string.Empty;
 
-    // Kept temporarily for backward compatibility with the
-    // existing Job Seeker UI and DTOs.
-    //
-    // CompanyId is now the authoritative relationship.
+    // Kept temporarily so existing seeded jobs and Job Seeker UI
+    // can continue to use the company name.
+    // CompanyId is the actual relationship to the Company entity.
     public string Company { get; set; } = string.Empty;
 
     public Guid? CompanyId { get; set; }
 
-    public Company? CompanyEntity { get; set; }
-
-    // The recruiter who originally created the posting.
     public Guid? CreatedByUserId { get; set; }
-
-    public ApplicationUser? CreatedByUser { get; set; }
 
     public string Location { get; set; } = string.Empty;
 
+    public EmploymentType EmploymentType { get; set; }
+
+    public WorkMode WorkMode { get; set; }
+
     public string? Description { get; set; }
+
+    public string Responsibilities { get; set; } = string.Empty;
+
+    public string Requirements { get; set; } = string.Empty;
+
+    public ExperienceLevel ExperienceLevel { get; set; }
+
+    public int? MinExperienceYears { get; set; }
+
+    public decimal? MinSalary { get; set; }
+
+    public decimal? MaxSalary { get; set; }
+
+    public string? Currency { get; set; }
+
+    public DateOnly? ApplicationDeadline { get; set; }
 
     public JobPostingStatus Status { get; set; }
         = JobPostingStatus.Draft;
@@ -40,6 +77,13 @@ public class JobPosting
 
     public DateTime? UpdatedAt { get; set; }
 
+    public Company? CompanyEntity { get; set; }
+
+    public ApplicationUser? CreatedByUser { get; set; }
+
     public ICollection<JobPostingSkill> RequiredSkills { get; set; }
         = new List<JobPostingSkill>();
+
+    public ICollection<Application> Applications { get; set; }
+        = new List<Application>();
 }

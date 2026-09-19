@@ -12,12 +12,9 @@ public class ApplicationUser : IdentityUser<Guid>
 
     public DateTime? UpdatedAt { get; set; }
 
-    // Nullable because public JobSeeker registration does not
-    // belong to a company.
-    //
-    // Recruiter, HRManager and HiringPanelist accounts should
-    // have a CompanyId assigned.
-    public Guid? CompanyId { get; set; }
+    public ICollection<CompanyMember> CompanyMemberships { get; set; }
+        = new List<CompanyMember>();
 
-    public Company? Company { get; set; }
+    public ICollection<JobPosting> CreatedJobPostings { get; set; }
+        = new List<JobPosting>();
 }

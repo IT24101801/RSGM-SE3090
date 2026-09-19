@@ -1,15 +1,36 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  AlertCircle, CircleCheck, FileText, Loader2, Plus, Sparkles, Upload, X,
+  AlertCircle, BriefcaseBusiness, CircleCheck, FileText, GraduationCap, KeyRound,
+  Loader2, Pencil, Plus, Sparkles, Trash2, Upload, X,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-import { getProfile, updateProfile } from "../../services/jobSeekerProfileService";
+import { logout } from "../../services/authService";
+import {
+  changePassword, createEducationRecord, createWorkExperience, deleteAccount,
+  deleteEducationRecord, deleteWorkExperience, getEducationRecords, getProfile,
+  getWorkExperiences, updateEducationRecord, updateProfile, updateWorkExperience,
+} from "../../services/jobSeekerProfileService";
 import { addMySkill, getMySkills, removeMySkill } from "../../services/jobSeekerSkillService";
 import { getSkills } from "../../services/skillService";
 import { deleteCv, getCv, uploadCv } from "../../services/jobSeekerCvService";
 
+const EMPTY_EDUCATION = {
+  institution: "", degree: "", fieldOfStudy: "", startDate: "", endDate: "",
+  isCurrent: false, description: "",
+};
+
+const EMPTY_EXPERIENCE = {
+  jobTitle: "", companyName: "", location: "", startDate: "", endDate: "",
+  isCurrent: false, description: "",
+};
+
 function ProfilePage() {
-  const [profile, setProfile] = useState({ fullName: "", headline: "", location: "", bio: "" });
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState({
+    fullName: "", headline: "", location: "", bio: "",
+    linkedInUrl: "", gitHubUrl: "", portfolioUrl: "",
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -23,11 +44,40 @@ function ProfilePage() {
   const [selectedSkillId, setSelectedSkillId] = useState("");
   const [isAddingSkill, setIsAddingSkill] = useState(false);
 
+  const [educationRecords, setEducationRecords] = useState([]);
+  const [educationForm, setEducationForm] = useState(null);
+  const [educationEditingId, setEducationEditingId] = useState(null);
+  const [educationLoading, setEducationLoading] = useState(true);
+  const [educationSaving, setEducationSaving] = useState(false);
+  const [educationError, setEducationError] = useState("");
+
+  const [workExperiences, setWorkExperiences] = useState([]);
+  const [experienceForm, setExperienceForm] = useState(null);
+  const [experienceEditingId, setExperienceEditingId] = useState(null);
+  const [experienceLoading, setExperienceLoading] = useState(true);
+  const [experienceSaving, setExperienceSaving] = useState(false);
+  const [experienceError, setExperienceError] = useState("");
+
   const [cv, setCv] = useState(null);
   const [cvLoading, setCvLoading] = useState(true);
   const [cvError, setCvError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [passwordError, setPasswordError] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordChanged, setPasswordChanged] = useState(false);
+
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -61,6 +111,9 @@ function ProfilePage() {
           headline: data.headline ?? "",
           location: data.location ?? "",
           bio: data.bio ?? "",
+          linkedInUrl: data.linkedInUrl ?? "",
+          gitHubUrl: data.gitHubUrl ?? "",
+          portfolioUrl: data.portfolioUrl ?? "",
         });
       })
       .catch((err) => {
@@ -73,6 +126,24 @@ function ProfilePage() {
     return () => {
       ignore = true;
     };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    getEducationRecords()
+      .then((records) => { if (!ignore) setEducationRecords(records); })
+      .catch((err) => { if (!ignore) setEducationError(err.message || "Unable to load education."); })
+      .finally(() => { if (!ignore) setEducationLoading(false); });
+    return () => { ignore = true; };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    getWorkExperiences()
+      .then((records) => { if (!ignore) setWorkExperiences(records); })
+      .catch((err) => { if (!ignore) setExperienceError(err.message || "Unable to load work experience."); })
+      .finally(() => { if (!ignore) setExperienceLoading(false); });
+    return () => { ignore = true; };
   }, []);
 
   useEffect(() => {
@@ -109,12 +180,18 @@ function ProfilePage() {
         headline: profile.headline,
         location: profile.location,
         bio: profile.bio,
+        linkedInUrl: profile.linkedInUrl.trim() || null,
+        gitHubUrl: profile.gitHubUrl.trim() || null,
+        portfolioUrl: profile.portfolioUrl.trim() || null,
       });
       setProfile({
         fullName: updated.fullName ?? "",
         headline: updated.headline ?? "",
         location: updated.location ?? "",
         bio: updated.bio ?? "",
+        linkedInUrl: updated.linkedInUrl ?? "",
+        gitHubUrl: updated.gitHubUrl ?? "",
+        portfolioUrl: updated.portfolioUrl ?? "",
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -186,6 +263,188 @@ function ProfilePage() {
     }
   };
 
+  const updatePasswordField = (key, value) => {
+    setPasswordForm((prev) => ({ ...prev, [key]: value }));
+    setPasswordChanged(false);
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordError("");
+
+    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
+      setPasswordError("Please fill in all password fields.");
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError("New password and confirmation do not match.");
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setPasswordChanged(true);
+      setTimeout(() => setPasswordChanged(false), 2500);
+    } catch (err) {
+      setPasswordError(err.message || "Unable to update password.");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const openEducationCreate = () => {
+    setEducationEditingId(null);
+    setEducationForm({ ...EMPTY_EDUCATION });
+    setEducationError("");
+  };
+
+  const openEducationEdit = (record) => {
+    setEducationEditingId(record.id);
+    setEducationForm({
+      institution: record.institution,
+      degree: record.degree,
+      fieldOfStudy: record.fieldOfStudy ?? "",
+      startDate: record.startDate,
+      endDate: record.endDate ?? "",
+      isCurrent: record.isCurrent,
+      description: record.description ?? "",
+    });
+    setEducationError("");
+  };
+
+  const saveEducation = async (event) => {
+    event.preventDefault();
+    setEducationSaving(true);
+    setEducationError("");
+    try {
+      const payload = {
+        ...educationForm,
+        endDate: educationForm.isCurrent ? null : educationForm.endDate,
+      };
+      const savedRecord = educationEditingId
+        ? await updateEducationRecord(educationEditingId, payload)
+        : await createEducationRecord(payload);
+      setEducationRecords((current) => sortCareerRecords(
+        current.some((item) => item.id === savedRecord.id)
+          ? current.map((item) => item.id === savedRecord.id ? savedRecord : item)
+          : [...current, savedRecord]
+      ));
+      setEducationForm(null);
+      setEducationEditingId(null);
+    } catch (err) {
+      setEducationError(err.message || "Unable to save education.");
+    } finally {
+      setEducationSaving(false);
+    }
+  };
+
+  const removeEducation = async (record) => {
+    if (!window.confirm(`Delete ${record.degree} at ${record.institution}?`)) return;
+    setEducationError("");
+    try {
+      await deleteEducationRecord(record.id);
+      setEducationRecords((current) => current.filter((item) => item.id !== record.id));
+    } catch (err) {
+      setEducationError(err.message || "Unable to delete education.");
+    }
+  };
+
+  const openExperienceCreate = () => {
+    setExperienceEditingId(null);
+    setExperienceForm({ ...EMPTY_EXPERIENCE });
+    setExperienceError("");
+  };
+
+  const openExperienceEdit = (record) => {
+    setExperienceEditingId(record.id);
+    setExperienceForm({
+      jobTitle: record.jobTitle,
+      companyName: record.companyName,
+      location: record.location ?? "",
+      startDate: record.startDate,
+      endDate: record.endDate ?? "",
+      isCurrent: record.isCurrent,
+      description: record.description ?? "",
+    });
+    setExperienceError("");
+  };
+
+  const saveExperience = async (event) => {
+    event.preventDefault();
+    setExperienceSaving(true);
+    setExperienceError("");
+    try {
+      const payload = {
+        ...experienceForm,
+        endDate: experienceForm.isCurrent ? null : experienceForm.endDate,
+      };
+      const savedRecord = experienceEditingId
+        ? await updateWorkExperience(experienceEditingId, payload)
+        : await createWorkExperience(payload);
+      setWorkExperiences((current) => sortCareerRecords(
+        current.some((item) => item.id === savedRecord.id)
+          ? current.map((item) => item.id === savedRecord.id ? savedRecord : item)
+          : [...current, savedRecord]
+      ));
+      setExperienceForm(null);
+      setExperienceEditingId(null);
+    } catch (err) {
+      setExperienceError(err.message || "Unable to save work experience.");
+    } finally {
+      setExperienceSaving(false);
+    }
+  };
+
+  const removeExperience = async (record) => {
+    if (!window.confirm(`Delete ${record.jobTitle} at ${record.companyName}?`)) return;
+    setExperienceError("");
+    try {
+      await deleteWorkExperience(record.id);
+      setWorkExperiences((current) => current.filter((item) => item.id !== record.id));
+    } catch (err) {
+      setExperienceError(err.message || "Unable to delete work experience.");
+    }
+  };
+
+  const closeDeleteDialog = () => {
+    if (isDeleting) return;
+    setShowDeleteDialog(false);
+    setDeletePassword("");
+    setDeleteConfirmation("");
+    setDeleteError("");
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleteError("");
+
+    if (!deletePassword) {
+      setDeleteError("Enter your current password.");
+      return;
+    }
+
+    if (deleteConfirmation !== "DELETE") {
+      setDeleteError('Type "DELETE" exactly to confirm.');
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      await deleteAccount(deletePassword);
+      logout();
+      navigate("/login", {
+        replace: true,
+        state: { message: "Your account was deleted successfully." },
+      });
+    } catch (err) {
+      setDeleteError(err.message || "Unable to delete account.");
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div>
       <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-50 text-violet-600 text-[11px] font-semibold">
@@ -249,6 +508,36 @@ function ProfilePage() {
                   className="w-full rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 py-3 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition resize-none"
                 />
               </Field>
+
+              <Field label="LinkedIn URL">
+                <input
+                  type="url"
+                  value={profile.linkedInUrl}
+                  onChange={(e) => updateField("linkedInUrl", e.target.value)}
+                  placeholder="https://www.linkedin.com/in/your-name"
+                  className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+                />
+              </Field>
+
+              <Field label="GitHub URL">
+                <input
+                  type="url"
+                  value={profile.gitHubUrl}
+                  onChange={(e) => updateField("gitHubUrl", e.target.value)}
+                  placeholder="https://github.com/your-username"
+                  className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+                />
+              </Field>
+
+              <Field label="Portfolio URL">
+                <input
+                  type="url"
+                  value={profile.portfolioUrl}
+                  onChange={(e) => updateField("portfolioUrl", e.target.value)}
+                  placeholder="https://your-portfolio.com"
+                  className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+                />
+              </Field>
             </div>
 
             {saveError && (
@@ -276,6 +565,104 @@ function ProfilePage() {
               )}
             </div>
           </>
+        )}
+      </div>
+
+      {/* ================= EDUCATION ================= */}
+
+      <div className="mt-6 rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30 p-6 max-w-2xl">
+        <SectionHeader
+          icon={GraduationCap}
+          title="Education"
+          buttonText="Add education"
+          onAdd={openEducationCreate}
+        />
+
+        {educationError && <InlineError message={educationError} />}
+
+        {educationForm && (
+          <EducationForm
+            form={educationForm}
+            setForm={setEducationForm}
+            editing={Boolean(educationEditingId)}
+            saving={educationSaving}
+            onSubmit={saveEducation}
+            onCancel={() => { setEducationForm(null); setEducationEditingId(null); }}
+          />
+        )}
+
+        {educationLoading ? (
+          <LoadingRow text="Loading education..." />
+        ) : (
+          <div className="mt-5 space-y-3">
+            {educationRecords.map((record) => (
+              <article key={record.id} className="rounded-xl border border-neutral-200 bg-neutral-50/60 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold text-neutral-900">{record.degree}</h3>
+                    <p className="mt-1 text-sm text-neutral-600">
+                      {record.institution}{record.fieldOfStudy ? ` · ${record.fieldOfStudy}` : ""}
+                    </p>
+                    <p className="mt-1 text-xs text-neutral-400">{formatCareerPeriod(record)}</p>
+                  </div>
+                  <RecordActions onEdit={() => openEducationEdit(record)} onDelete={() => removeEducation(record)} />
+                </div>
+                {record.description && <p className="mt-3 text-sm text-neutral-500 whitespace-pre-line">{record.description}</p>}
+              </article>
+            ))}
+            {educationRecords.length === 0 && !educationForm && (
+              <p className="text-sm text-neutral-400">No education records added yet.</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ================= WORK EXPERIENCE ================= */}
+
+      <div className="mt-6 rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30 p-6 max-w-2xl">
+        <SectionHeader
+          icon={BriefcaseBusiness}
+          title="Work experience"
+          buttonText="Add experience"
+          onAdd={openExperienceCreate}
+        />
+
+        {experienceError && <InlineError message={experienceError} />}
+
+        {experienceForm && (
+          <WorkExperienceForm
+            form={experienceForm}
+            setForm={setExperienceForm}
+            editing={Boolean(experienceEditingId)}
+            saving={experienceSaving}
+            onSubmit={saveExperience}
+            onCancel={() => { setExperienceForm(null); setExperienceEditingId(null); }}
+          />
+        )}
+
+        {experienceLoading ? (
+          <LoadingRow text="Loading work experience..." />
+        ) : (
+          <div className="mt-5 space-y-3">
+            {workExperiences.map((record) => (
+              <article key={record.id} className="rounded-xl border border-neutral-200 bg-neutral-50/60 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold text-neutral-900">{record.jobTitle}</h3>
+                    <p className="mt-1 text-sm text-neutral-600">
+                      {record.companyName}{record.location ? ` · ${record.location}` : ""}
+                    </p>
+                    <p className="mt-1 text-xs text-neutral-400">{formatCareerPeriod(record)}</p>
+                  </div>
+                  <RecordActions onEdit={() => openExperienceEdit(record)} onDelete={() => removeExperience(record)} />
+                </div>
+                {record.description && <p className="mt-3 text-sm text-neutral-500 whitespace-pre-line">{record.description}</p>}
+              </article>
+            ))}
+            {workExperiences.length === 0 && !experienceForm && (
+              <p className="text-sm text-neutral-400">No work experience added yet.</p>
+            )}
+          </div>
         )}
       </div>
 
@@ -413,6 +800,165 @@ function ProfilePage() {
           </>
         )}
       </div>
+
+      {/* ================= PASSWORD ================= */}
+
+      <div className="mt-6 rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30 p-6 max-w-2xl">
+        <h2 className="text-lg font-semibold tracking-tight">Password</h2>
+        <p className="mt-1 text-sm text-neutral-500">
+          Update the password you use to sign in.
+        </p>
+
+        <div className="mt-5 space-y-4">
+          <Field label="Current password">
+            <input
+              type="password"
+              value={passwordForm.currentPassword}
+              onChange={(e) => updatePasswordField("currentPassword", e.target.value)}
+              className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+            />
+          </Field>
+
+          <Field label="New password">
+            <input
+              type="password"
+              value={passwordForm.newPassword}
+              onChange={(e) => updatePasswordField("newPassword", e.target.value)}
+              className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+            />
+          </Field>
+
+          <Field label="Confirm new password">
+            <input
+              type="password"
+              value={passwordForm.confirmPassword}
+              onChange={(e) => updatePasswordField("confirmPassword", e.target.value)}
+              className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+            />
+          </Field>
+        </div>
+
+        {passwordError && (
+          <div className="mt-4 flex items-start gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
+            <AlertCircle size={17} className="mt-0.5 shrink-0" />
+            <span>{passwordError}</span>
+          </div>
+        )}
+
+        <div className="mt-6 flex items-center gap-3">
+          <button
+            onClick={handleChangePassword}
+            disabled={isChangingPassword}
+            className="h-11 px-5 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center gap-2 hover:bg-neutral-800 active:scale-[0.99] transition disabled:opacity-60"
+          >
+            {isChangingPassword ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}
+            Update password
+          </button>
+
+          {passwordChanged && (
+            <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+              <CircleCheck size={15} />
+              Updated
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ================= DANGER ZONE ================= */}
+
+      <div className="mt-6 rounded-2xl border border-red-200 bg-red-50/70 p-6 max-w-2xl">
+        <h2 className="text-lg font-semibold tracking-tight text-red-700">Danger zone</h2>
+        <p className="mt-1 text-sm text-red-600/80">
+          Permanently delete your account, profile, skills, CV, and job applications.
+          This action cannot be undone.
+        </p>
+        <button
+          onClick={() => setShowDeleteDialog(true)}
+          className="mt-5 h-11 px-5 rounded-xl bg-red-600 text-white text-sm font-semibold flex items-center gap-2 hover:bg-red-700 active:scale-[0.99] transition"
+        >
+          <Trash2 size={15} />
+          Delete account
+        </button>
+      </div>
+
+      {showDeleteDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/50 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-account-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeDeleteDialog();
+          }}
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="delete-account-title" className="text-xl font-semibold text-neutral-900">
+                  Delete your account?
+                </h2>
+                <p className="mt-2 text-sm text-neutral-500">
+                  All of your Job Seeker data will be permanently removed.
+                </p>
+              </div>
+              <button
+                onClick={closeDeleteDialog}
+                disabled={isDeleting}
+                aria-label="Close delete account dialog"
+                className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 transition disabled:opacity-50"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <Field label="Current password">
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={(event) => setDeletePassword(event.target.value)}
+                  autoComplete="current-password"
+                  className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-red-400 focus:ring-4 focus:ring-red-100 transition"
+                />
+              </Field>
+
+              <Field label='Type "DELETE" to confirm'>
+                <input
+                  value={deleteConfirmation}
+                  onChange={(event) => setDeleteConfirmation(event.target.value)}
+                  placeholder="DELETE"
+                  className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-red-400 focus:ring-4 focus:ring-red-100 transition"
+                />
+              </Field>
+            </div>
+
+            {deleteError && (
+              <div className="mt-4 flex items-start gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
+                <AlertCircle size={17} className="mt-0.5 shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={closeDeleteDialog}
+                disabled={isDeleting}
+                className="h-11 px-5 rounded-xl border border-neutral-200 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={isDeleting || !deletePassword || deleteConfirmation !== "DELETE"}
+                className="h-11 px-5 rounded-xl bg-red-600 text-white text-sm font-semibold flex items-center gap-2 hover:bg-red-700 transition disabled:opacity-50"
+              >
+                {isDeleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                {isDeleting ? "Deleting..." : "Permanently delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -424,6 +970,185 @@ function Field({ label, children }) {
       {children}
     </div>
   );
+}
+
+const formInputClass = "w-full h-11 rounded-xl border border-neutral-200 bg-white px-4 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition";
+
+function SectionHeader({ icon: Icon, title, buttonText, onAdd }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+        <Icon size={18} className="text-violet-600" /> {title}
+      </h2>
+      <button type="button" onClick={onAdd}
+        className="h-9 px-3 rounded-lg bg-neutral-900 text-white text-xs font-semibold flex items-center gap-1.5">
+        <Plus size={13} /> {buttonText}
+      </button>
+    </div>
+  );
+}
+
+function EducationForm({ form, setForm, editing, saving, onSubmit, onCancel }) {
+  return (
+    <form onSubmit={onSubmit} className="mt-5 rounded-xl border border-violet-100 bg-violet-50/40 p-4">
+      <h3 className="text-sm font-semibold">{editing ? "Edit education" : "Add education"}</h3>
+      <div className="mt-4 grid sm:grid-cols-2 gap-4">
+        <Field label="Institution *">
+          <input required maxLength={150} value={form.institution}
+            onChange={(event) => setForm({ ...form, institution: event.target.value })}
+            className={formInputClass} />
+        </Field>
+        <Field label="Degree *">
+          <input required maxLength={150} value={form.degree}
+            onChange={(event) => setForm({ ...form, degree: event.target.value })}
+            className={formInputClass} />
+        </Field>
+        <Field label="Field of study">
+          <input maxLength={150} value={form.fieldOfStudy}
+            onChange={(event) => setForm({ ...form, fieldOfStudy: event.target.value })}
+            className={formInputClass} />
+        </Field>
+        <Field label="Start date *">
+          <input required type="date" value={form.startDate}
+            onChange={(event) => setForm({ ...form, startDate: event.target.value })}
+            className={formInputClass} />
+        </Field>
+        {!form.isCurrent && (
+          <Field label="End date *">
+            <input required type="date" min={form.startDate || undefined} value={form.endDate}
+              onChange={(event) => setForm({ ...form, endDate: event.target.value })}
+              className={formInputClass} />
+          </Field>
+        )}
+      </div>
+      <label className="mt-4 flex items-center gap-2 text-sm text-neutral-600">
+        <input type="checkbox" checked={form.isCurrent}
+          onChange={(event) => setForm({ ...form, isCurrent: event.target.checked, endDate: "" })} />
+        I am currently studying here
+      </label>
+      <Field label="Description">
+        <textarea maxLength={1000} rows={3} value={form.description}
+          onChange={(event) => setForm({ ...form, description: event.target.value })}
+          className={`${formInputClass} h-auto py-3 resize-none`} />
+      </Field>
+      <FormActions saving={saving} onCancel={onCancel} />
+    </form>
+  );
+}
+
+function WorkExperienceForm({ form, setForm, editing, saving, onSubmit, onCancel }) {
+  return (
+    <form onSubmit={onSubmit} className="mt-5 rounded-xl border border-violet-100 bg-violet-50/40 p-4">
+      <h3 className="text-sm font-semibold">{editing ? "Edit work experience" : "Add work experience"}</h3>
+      <div className="mt-4 grid sm:grid-cols-2 gap-4">
+        <Field label="Job title *">
+          <input required maxLength={150} value={form.jobTitle}
+            onChange={(event) => setForm({ ...form, jobTitle: event.target.value })}
+            className={formInputClass} />
+        </Field>
+        <Field label="Company *">
+          <input required maxLength={150} value={form.companyName}
+            onChange={(event) => setForm({ ...form, companyName: event.target.value })}
+            className={formInputClass} />
+        </Field>
+        <Field label="Location">
+          <input maxLength={150} value={form.location}
+            onChange={(event) => setForm({ ...form, location: event.target.value })}
+            className={formInputClass} />
+        </Field>
+        <Field label="Start date *">
+          <input required type="date" value={form.startDate}
+            onChange={(event) => setForm({ ...form, startDate: event.target.value })}
+            className={formInputClass} />
+        </Field>
+        {!form.isCurrent && (
+          <Field label="End date *">
+            <input required type="date" min={form.startDate || undefined} value={form.endDate}
+              onChange={(event) => setForm({ ...form, endDate: event.target.value })}
+              className={formInputClass} />
+          </Field>
+        )}
+      </div>
+      <label className="mt-4 flex items-center gap-2 text-sm text-neutral-600">
+        <input type="checkbox" checked={form.isCurrent}
+          onChange={(event) => setForm({ ...form, isCurrent: event.target.checked, endDate: "" })} />
+        I currently work here
+      </label>
+      <Field label="Description">
+        <textarea maxLength={1000} rows={3} value={form.description}
+          onChange={(event) => setForm({ ...form, description: event.target.value })}
+          className={`${formInputClass} h-auto py-3 resize-none`} />
+      </Field>
+      <FormActions saving={saving} onCancel={onCancel} />
+    </form>
+  );
+}
+
+function FormActions({ saving, onCancel }) {
+  return (
+    <div className="mt-4 flex gap-2">
+      <button disabled={saving}
+        className="h-10 px-4 rounded-lg bg-violet-600 text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
+        {saving && <Loader2 size={14} className="animate-spin" />} Save
+      </button>
+      <button type="button" onClick={onCancel} disabled={saving}
+        className="h-10 px-4 rounded-lg border border-neutral-200 text-sm font-semibold text-neutral-600 disabled:opacity-50">
+        Cancel
+      </button>
+    </div>
+  );
+}
+
+function RecordActions({ onEdit, onDelete }) {
+  return (
+    <div className="flex gap-1 shrink-0">
+      <button type="button" onClick={onEdit} aria-label="Edit record"
+        className="p-2 rounded-lg text-neutral-500 hover:bg-white hover:text-violet-600 transition">
+        <Pencil size={14} />
+      </button>
+      <button type="button" onClick={onDelete} aria-label="Delete record"
+        className="p-2 rounded-lg text-neutral-500 hover:bg-red-50 hover:text-red-600 transition">
+        <Trash2 size={14} />
+      </button>
+    </div>
+  );
+}
+
+function LoadingRow({ text }) {
+  return (
+    <div className="mt-5 flex items-center gap-2 text-sm text-neutral-400">
+      <Loader2 size={16} className="animate-spin" /> {text}
+    </div>
+  );
+}
+
+function InlineError({ message }) {
+  return (
+    <div className="mt-4 flex items-start gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
+      <AlertCircle size={17} className="mt-0.5 shrink-0" /> <span>{message}</span>
+    </div>
+  );
+}
+
+function sortCareerRecords(records) {
+  return [...records].sort((left, right) => {
+    if (left.isCurrent !== right.isCurrent) return left.isCurrent ? -1 : 1;
+    return right.startDate.localeCompare(left.startDate);
+  });
+}
+
+function formatCareerPeriod(record) {
+  const start = formatMonth(record.startDate);
+  const end = record.isCurrent ? "Present" : formatMonth(record.endDate);
+  return `${start} – ${end}`;
+}
+
+function formatMonth(value) {
+  if (!value) return "Not specified";
+  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export default ProfilePage;
