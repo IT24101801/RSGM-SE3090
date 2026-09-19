@@ -343,6 +343,13 @@ app.MapHealthChecks("/health");
 await IdentitySeeder.SeedAsync(
     app.Services,
     builder.Configuration);
+
+await CompanySeeder.SeedAsync(
+    app.Services);
+
+await CompanyBackfillSeeder.SeedAsync(
+    app.Services);
+
 await JobPostingSeeder.SeedAsync(
     app.Services);
 await CompanySeeder.SeedAsync(

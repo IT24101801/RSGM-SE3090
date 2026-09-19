@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using RSGM.Api.Data;
@@ -11,9 +12,11 @@ using RSGM.Api.Data;
 namespace RSGM.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260919045742_AddCompanyOwnershipAndSkillMatchingFoundation")]
+    partial class AddCompanyOwnershipAndSkillMatchingFoundation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -305,9 +308,6 @@ namespace RSGM.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<DateOnly?>("ApplicationDeadline")
-                        .HasColumnType("date");
-
                     b.Property<string>("Company")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -326,37 +326,10 @@ namespace RSGM.Api.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
-                    b.Property<int>("EmploymentType")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ExperienceLevel")
-                        .HasColumnType("integer");
-
                     b.Property<string>("Location")
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
-
-                    b.Property<decimal?>("MaxSalary")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int?>("MinExperienceYears")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal?>("MinSalary")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("Requirements")
-                        .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("character varying(3000)");
-
-                    b.Property<string>("Responsibilities")
-                        .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("character varying(3000)");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -457,25 +430,13 @@ namespace RSGM.Api.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("GitHubUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.Property<string>("Headline")
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
-                    b.Property<string>("LinkedInUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.Property<string>("Location")
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
-
-                    b.Property<string>("PortfolioUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -561,55 +522,6 @@ namespace RSGM.Api.Migrations
                     b.ToTable("Skills");
                 });
 
-            modelBuilder.Entity("RSGM.Api.Models.Entities.WorkExperience", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CompanyName")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<DateOnly?>("EndDate")
-                        .HasColumnType("date");
-
-                    b.Property<bool>("IsCurrent")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("JobTitle")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("Location")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<DateOnly>("StartDate")
-                        .HasColumnType("date");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("WorkExperiences");
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
@@ -664,7 +576,7 @@ namespace RSGM.Api.Migrations
             modelBuilder.Entity("RSGM.Api.Models.Entities.Application", b =>
                 {
                     b.HasOne("RSGM.Api.Models.Entities.JobPosting", "JobPosting")
-                        .WithMany("Applications")
+                        .WithMany()
                         .HasForeignKey("JobPostingId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -776,8 +688,6 @@ namespace RSGM.Api.Migrations
 
             modelBuilder.Entity("RSGM.Api.Models.Entities.JobPosting", b =>
                 {
-                    b.Navigation("Applications");
-
                     b.Navigation("RequiredSkills");
                 });
 #pragma warning restore 612, 618

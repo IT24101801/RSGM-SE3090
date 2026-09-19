@@ -5,38 +5,70 @@ using RSGM.Api.Models.Entities;
 
 namespace RSGM.Api.Data;
 
-public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>
+public class ApplicationDbContext
+    : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>
 {
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+    public ApplicationDbContext(
+        DbContextOptions<ApplicationDbContext> options)
         : base(options)
     {
     }
 
+    // ---------------------------------------------------------
+    // Skills
+    // ---------------------------------------------------------
+
     public DbSet<Skill> Skills => Set<Skill>();
 
-    public DbSet<JobSeekerProfile> JobSeekerProfiles => Set<JobSeekerProfile>();
+    // ---------------------------------------------------------
+    // Job Seeker
+    // ---------------------------------------------------------
 
-    public DbSet<JobSeekerSkill> JobSeekerSkills => Set<JobSeekerSkill>();
+    public DbSet<JobSeekerProfile> JobSeekerProfiles
+        => Set<JobSeekerProfile>();
 
-    public DbSet<JobSeekerCv> JobSeekerCvs => Set<JobSeekerCv>();
+    public DbSet<JobSeekerSkill> JobSeekerSkills
+        => Set<JobSeekerSkill>();
 
-    public DbSet<Education> EducationRecords => Set<Education>();
+    public DbSet<JobSeekerCv> JobSeekerCvs
+        => Set<JobSeekerCv>();
 
-    public DbSet<WorkExperience> WorkExperiences => Set<WorkExperience>();
+    public DbSet<Education> EducationRecords
+        => Set<Education>();
 
-    public DbSet<JobPosting> JobPostings => Set<JobPosting>();
+    public DbSet<WorkExperience> WorkExperiences
+        => Set<WorkExperience>();
 
-    public DbSet<JobPostingSkill> JobPostingSkills => Set<JobPostingSkill>();
+    // ---------------------------------------------------------
+    // Jobs
+    // ---------------------------------------------------------
 
-    public DbSet<Application> Applications => Set<Application>();
+    public DbSet<JobPosting> JobPostings
+        => Set<JobPosting>();
 
-    public DbSet<Company> Companies => Set<Company>();
+    public DbSet<JobPostingSkill> JobPostingSkills
+        => Set<JobPostingSkill>();
 
-    public DbSet<CompanyMember> CompanyMembers => Set<CompanyMember>();
+    public DbSet<Application> Applications
+        => Set<Application>();
+
+    // ---------------------------------------------------------
+    // Companies
+    // ---------------------------------------------------------
+
+    public DbSet<Company> Companies
+        => Set<Company>();
+
+    public DbSet<CompanyMember> CompanyMembers
+        => Set<CompanyMember>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        // =====================================================
+        // Skill
+        // =====================================================
 
         builder.Entity<Skill>(entity =>
         {
@@ -56,6 +88,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.HasIndex(x => x.NormalizedName)
                 .IsUnique();
         });
+
+        // =====================================================
+        // Job Seeker Profile
+        // =====================================================
 
         builder.Entity<JobSeekerProfile>(entity =>
         {
@@ -88,12 +124,24 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        // =====================================================
+        // Job Seeker Skill
+        // =====================================================
+
         builder.Entity<JobSeekerSkill>(entity =>
         {
             entity.HasKey(x => x.Id);
 
-            entity.HasIndex(x => new { x.UserId, x.SkillId })
-                .IsUnique();
+            entity.Property(x => x.ProficiencyLevel)
+                .IsRequired()
+                .HasDefaultValue(3);
+
+            entity.HasIndex(x => new
+            {
+                x.UserId,
+                x.SkillId
+            })
+            .IsUnique();
 
             entity.HasOne(x => x.User)
                 .WithMany()
@@ -105,6 +153,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
                 .HasForeignKey(x => x.SkillId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        // =====================================================
+        // Job Seeker CV
+        // =====================================================
 
         builder.Entity<JobSeekerCv>(entity =>
         {
@@ -130,6 +182,129 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        // =====================================================
+        // Education
+        // =====================================================
+
+        builder.Entity<Education>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Institution)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.Degree)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.FieldOfStudy)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.Description)
+                .HasMaxLength(1000);
+
+            entity.HasIndex(x => x.UserId);
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // =====================================================
+        // Work Experience
+        // =====================================================
+
+        builder.Entity<WorkExperience>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.JobTitle)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.CompanyName)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.Location)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.Description)
+                .HasMaxLength(1000);
+
+            entity.HasIndex(x => x.UserId);
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // =====================================================
+        // Company
+        // =====================================================
+
+        builder.Entity<Company>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Name)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.NormalizedName)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.Description)
+                .HasMaxLength(1000);
+
+            entity.Property(x => x.Website)
+                .HasMaxLength(300);
+
+            entity.Property(x => x.LogoUrl)
+                .HasMaxLength(500);
+
+            entity.HasIndex(x => x.NormalizedName)
+                .IsUnique();
+        });
+
+        // =====================================================
+        // Company Member
+        // =====================================================
+
+        builder.Entity<CompanyMember>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            // A staff user belongs to only one company.
+            entity.HasIndex(x => x.UserId)
+                .IsUnique();
+
+            entity.HasIndex(x => new
+            {
+                x.CompanyId,
+                x.UserId
+            })
+            .IsUnique();
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.Members)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.CompanyMemberships)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // =====================================================
+        // Job Posting
+        // =====================================================
 
         builder.Entity<JobPosting>(entity =>
         {
@@ -167,6 +342,12 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             entity.Property(x => x.Currency)
                 .HasMaxLength(3);
 
+            entity.Property(x => x.CompanyId)
+                .IsRequired(false);
+
+            entity.Property(x => x.CreatedByUserId)
+                .IsRequired(false);
+
             entity.HasIndex(x => x.CompanyId);
 
             entity.HasIndex(x => x.CreatedByUserId);
@@ -182,107 +363,24 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        builder.Entity<Company>(entity =>
-        {
-            entity.HasKey(x => x.Id);
-
-            entity.Property(x => x.Name)
-                .IsRequired()
-                .HasMaxLength(150);
-
-            entity.Property(x => x.Description)
-                .HasMaxLength(1000);
-
-            entity.Property(x => x.Website)
-                .HasMaxLength(300);
-
-            entity.Property(x => x.LogoUrl)
-                .HasMaxLength(500);
-
-            entity.HasIndex(x => x.Name)
-                .IsUnique();
-        });
-
-        builder.Entity<CompanyMember>(entity =>
-        {
-            entity.HasKey(x => x.Id);
-
-            // One staff user belongs to one company in the current system.
-            entity.HasIndex(x => x.UserId)
-                .IsUnique();
-
-            entity.HasIndex(x => new { x.CompanyId, x.UserId })
-                .IsUnique();
-
-            entity.HasOne(x => x.Company)
-                .WithMany(x => x.Members)
-                .HasForeignKey(x => x.CompanyId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(x => x.User)
-                .WithMany(x => x.CompanyMemberships)
-                .HasForeignKey(x => x.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        builder.Entity<Education>(entity =>
-        {
-            entity.HasKey(x => x.Id);
-
-            entity.Property(x => x.Institution)
-                .IsRequired()
-                .HasMaxLength(150);
-
-            entity.Property(x => x.Degree)
-                .IsRequired()
-                .HasMaxLength(150);
-
-            entity.Property(x => x.FieldOfStudy)
-                .HasMaxLength(150);
-
-            entity.Property(x => x.Description)
-                .HasMaxLength(1000);
-
-            entity.HasIndex(x => x.UserId);
-
-            entity.HasOne(x => x.User)
-                .WithMany()
-                .HasForeignKey(x => x.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        builder.Entity<WorkExperience>(entity =>
-        {
-            entity.HasKey(x => x.Id);
-
-            entity.Property(x => x.JobTitle)
-                .IsRequired()
-                .HasMaxLength(150);
-
-            entity.Property(x => x.CompanyName)
-                .IsRequired()
-                .HasMaxLength(150);
-
-            entity.Property(x => x.Location)
-                .HasMaxLength(150);
-
-            entity.Property(x => x.Description)
-                .HasMaxLength(1000);
-
-            entity.HasIndex(x => x.UserId);
-
-            entity.HasOne(x => x.User)
-                .WithMany()
-                .HasForeignKey(x => x.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
+        // =====================================================
+        // Job Posting Skill
+        // =====================================================
 
         builder.Entity<JobPostingSkill>(entity =>
         {
             entity.HasKey(x => x.Id);
 
-            entity.HasIndex(x => new { x.JobPostingId, x.SkillId })
-                .IsUnique();
+            entity.Property(x => x.Weight)
+                .HasPrecision(5, 2)
+                .HasDefaultValue(1.0m);
+
+            entity.HasIndex(x => new
+            {
+                x.JobPostingId,
+                x.SkillId
+            })
+            .IsUnique();
 
             entity.HasOne(x => x.JobPosting)
                 .WithMany(x => x.RequiredSkills)
@@ -295,12 +393,21 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        // =====================================================
+        // Job Application
+        // =====================================================
+
         builder.Entity<Application>(entity =>
         {
             entity.HasKey(x => x.Id);
 
-            entity.HasIndex(x => new { x.UserId, x.JobPostingId })
-                .IsUnique();
+            // A Job Seeker can apply to the same job only once.
+            entity.HasIndex(x => new
+            {
+                x.UserId,
+                x.JobPostingId
+            })
+            .IsUnique();
 
             entity.HasOne(x => x.User)
                 .WithMany()
