@@ -598,7 +598,7 @@ public class JobRequisitionService
                 x.MaxSalary,
 
             Currency =
-                x.Currency,
+                x.Currency ?? "LKR",
 
             Description =
                 x.Description,
