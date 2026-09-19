@@ -11,7 +11,12 @@ import {
   deleteEducationRecord, deleteWorkExperience, getEducationRecords, getProfile,
   getWorkExperiences, updateEducationRecord, updateProfile, updateWorkExperience,
 } from "../../services/jobSeekerProfileService";
-import { addMySkill, getMySkills, removeMySkill } from "../../services/jobSeekerSkillService";
+import {
+  addMySkill,
+  getMySkills,
+  removeMySkill,
+  updateMySkillProficiency,
+} from "../../services/jobSeekerSkillService";
 import { getSkills } from "../../services/skillService";
 import { deleteCv, getCv, uploadCv } from "../../services/jobSeekerCvService";
 
@@ -42,7 +47,9 @@ function ProfilePage() {
   const [skillsError, setSkillsError] = useState("");
   const [catalog, setCatalog] = useState([]);
   const [selectedSkillId, setSelectedSkillId] = useState("");
+  const [selectedProficiencyLevel, setSelectedProficiencyLevel] = useState(3);
   const [isAddingSkill, setIsAddingSkill] = useState(false);
+  const [updatingSkillId, setUpdatingSkillId] = useState(null);
 
   const [educationRecords, setEducationRecords] = useState([]);
   const [educationForm, setEducationForm] = useState(null);
@@ -212,9 +219,10 @@ function ProfilePage() {
     setIsAddingSkill(true);
 
     try {
-      const added = await addMySkill(selectedSkillId);
+      const added = await addMySkill(selectedSkillId, selectedProficiencyLevel);
       setSkills((prev) => [...prev, added].sort((a, b) => a.name.localeCompare(b.name)));
       setSelectedSkillId("");
+      setSelectedProficiencyLevel(3);
     } catch (err) {
       setSkillsError(err.message || "Unable to add skill.");
     } finally {
@@ -230,6 +238,22 @@ function ProfilePage() {
       setSkills((prev) => prev.filter((s) => s.skillId !== skillId));
     } catch (err) {
       setSkillsError(err.message || "Unable to remove skill.");
+    }
+  };
+
+  const updateSkillProficiency = async (skillId, proficiencyLevel) => {
+    setSkillsError("");
+    setUpdatingSkillId(skillId);
+
+    try {
+      const updated = await updateMySkillProficiency(skillId, proficiencyLevel);
+      setSkills((prev) =>
+        prev.map((skill) => (skill.skillId === skillId ? updated : skill))
+      );
+    } catch (err) {
+      setSkillsError(err.message || "Unable to update skill proficiency.");
+    } finally {
+      setUpdatingSkillId(null);
     }
   };
 
@@ -733,7 +757,7 @@ function ProfilePage() {
       <div className="mt-6 rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30 p-6 max-w-2xl">
         <h2 className="text-lg font-semibold tracking-tight">Skills</h2>
         <p className="mt-1 text-sm text-neutral-500">
-          These are matched against job requirements to calculate your match score.
+          Add your skills and choose a proficiency level from Beginner to Expert.
         </p>
 
         {skillsLoading ? (
@@ -743,20 +767,49 @@ function ProfilePage() {
           </div>
         ) : (
           <>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 space-y-3">
               {skills.map((skill) => (
-                <span
+                <div
                   key={skill.skillId}
-                  className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full bg-violet-50 text-violet-700 text-sm font-medium"
+                  className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-neutral-50/70 p-3 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  {skill.name}
-                  <button
-                    onClick={() => removeSkill(skill.skillId)}
-                    className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-violet-100 transition"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
+                  <div>
+                    <p className="text-sm font-semibold text-neutral-800">{skill.name}</p>
+                    <p className="mt-0.5 text-xs text-neutral-400">
+                      {getProficiencyLabel(skill.proficiencyLevel)}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={skill.proficiencyLevel ?? 3}
+                      disabled={updatingSkillId === skill.skillId}
+                      onChange={(event) =>
+                        updateSkillProficiency(skill.skillId, Number(event.target.value))
+                      }
+                      className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 disabled:opacity-60"
+                    >
+                      <option value={1}>Beginner</option>
+                      <option value={2}>Basic</option>
+                      <option value={3}>Intermediate</option>
+                      <option value={4}>Advanced</option>
+                      <option value={5}>Expert</option>
+                    </select>
+
+                    {updatingSkillId === skill.skillId && (
+                      <Loader2 size={15} className="animate-spin text-neutral-400" />
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => removeSkill(skill.skillId)}
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 text-neutral-400 transition hover:bg-red-50 hover:text-red-500"
+                      aria-label={`Remove ${skill.name}`}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
               ))}
 
               {skills.length === 0 && (
@@ -771,30 +824,50 @@ function ProfilePage() {
               </div>
             )}
 
-            <div className="mt-4 flex items-center gap-2">
+            <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_180px_auto]">
               <select
                 value={selectedSkillId}
-                onChange={(e) => setSelectedSkillId(e.target.value)}
-                className="h-11 w-56 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+                onChange={(event) => setSelectedSkillId(event.target.value)}
+                className="h-11 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
               >
                 <option value="">Select a skill...</option>
-                {availableCatalog.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                {availableCatalog.map((skill) => (
+                  <option key={skill.id} value={skill.id}>
+                    {skill.name}
+                  </option>
                 ))}
               </select>
+
+              <select
+                value={selectedProficiencyLevel}
+                onChange={(event) => setSelectedProficiencyLevel(Number(event.target.value))}
+                className="h-11 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+              >
+                <option value={1}>Beginner</option>
+                <option value={2}>Basic</option>
+                <option value={3}>Intermediate</option>
+                <option value={4}>Advanced</option>
+                <option value={5}>Expert</option>
+              </select>
+
               <button
+                type="button"
                 onClick={addSkill}
                 disabled={isAddingSkill || !selectedSkillId}
-                className="h-11 px-4 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center gap-1.5 hover:bg-neutral-800 active:scale-[0.99] transition disabled:opacity-60"
+                className="h-11 px-4 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center justify-center gap-1.5 hover:bg-neutral-800 active:scale-[0.99] transition disabled:opacity-60"
               >
-                {isAddingSkill ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                {isAddingSkill ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Plus size={14} />
+                )}
                 Add
               </button>
             </div>
 
             {availableCatalog.length === 0 && !skillsLoading && (
               <p className="mt-2 text-xs text-neutral-400">
-                You've added every skill currently in the catalog.
+                You&apos;ve added every skill currently in the catalog.
               </p>
             )}
           </>
@@ -1149,6 +1222,24 @@ function formatMonth(value) {
     month: "short",
     year: "numeric",
   });
+}
+
+
+function getProficiencyLabel(level) {
+  switch (level) {
+    case 1:
+      return "Beginner";
+    case 2:
+      return "Basic";
+    case 3:
+      return "Intermediate";
+    case 4:
+      return "Advanced";
+    case 5:
+      return "Expert";
+    default:
+      return "Intermediate";
+  }
 }
 
 export default ProfilePage;
