@@ -16,9 +16,7 @@ import {
 } from "../../services/adminUserService";
 
 import {
-  assignCompanyMember,
   getAdminCompanies,
-  removeCompanyMember,
 } from "../../services/adminCompanyService";
 
 const ROLE_OPTIONS = [
@@ -50,6 +48,7 @@ function AdminUsersPage() {
 
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
+  const [pendingRoles, setPendingRoles] = useState({});
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -117,146 +116,57 @@ function AdminUsersPage() {
   // CHANGE ROLE
   // =========================================================
 
-  const handleRoleChange = async (
-    user,
-    newRole
-  ) => {
+  const handleRoleChange = async (user, newRole) => {
     if (user.role === newRole) {
+      setPendingRoles((previous) => ({ ...previous, [user.id]: undefined }));
+      return;
+    }
+
+    // Let the admin pick a company before applying a staff role.
+    if (canHaveCompany(newRole) && !user.companyId) {
+      setPendingRoles((previous) => ({ ...previous, [user.id]: newRole }));
+      setError("");
       return;
     }
 
     setError("");
     setSuccess("");
     setUpdatingId(user.id);
-
     try {
-      await updateAdminUserRole(
+      const updatedUser = await updateAdminUserRole(
         user.id,
-        newRole
+        newRole,
+        canHaveCompany(newRole) ? user.companyId : null
       );
-
-      replaceUser({
-        ...user,
-        role: newRole,
-      });
-
-      setSuccess(
-        `${user.fullName || user.email}'s role was updated successfully.`
-      );
+      replaceUser(updatedUser);
+      setPendingRoles((previous) => ({ ...previous, [user.id]: undefined }));
+      setSuccess(`${user.fullName || user.email}'s role was updated successfully.`);
     } catch (requestError) {
-      setError(
-        requestError.message ||
-          "Unable to update user role."
-      );
+      setError(requestError.message || "Unable to update user role.");
     } finally {
       setUpdatingId(null);
     }
   };
 
-  // =========================================================
-  // CHANGE COMPANY
-  // =========================================================
-
-  const handleCompanyChange = async (
-    user,
-    newCompanyId
-  ) => {
-    const currentCompanyId =
-      user.companyId ?? "";
-
-    if (currentCompanyId === newCompanyId) {
-      return;
-    }
+  const handleCompanyChange = async (user, newCompanyId) => {
+    if (!newCompanyId) return;
+    const newRole = pendingRoles[user.id] || user.role;
+    if (!pendingRoles[user.id] && user.companyId === newCompanyId) return;
 
     setError("");
     setSuccess("");
     setUpdatingId(user.id);
-
     try {
-      // ---------------------------------------------
-      // REMOVE COMPANY
-      // ---------------------------------------------
-
-      if (!newCompanyId) {
-        if (user.companyId) {
-          await removeCompanyMember(
-            user.companyId,
-            user.id
-          );
-        }
-
-        replaceUser({
-          ...user,
-          companyId: null,
-          companyName: null,
-        });
-
-        setSuccess(
-          `${user.fullName || user.email} was removed from the company.`
-        );
-
-        return;
-      }
-
-      // ---------------------------------------------
-      // USER ALREADY HAS A COMPANY
-      // Remove old membership before assigning new one.
-      // ---------------------------------------------
-
-      if (
-        user.companyId &&
-        user.companyId !== newCompanyId
-      ) {
-        await removeCompanyMember(
-          user.companyId,
-          user.id
-        );
-      }
-
-      // ---------------------------------------------
-      // ASSIGN NEW COMPANY
-      // ---------------------------------------------
-
-      await assignCompanyMember(
-        newCompanyId,
-        user.id
-      );
-
-      const selectedCompany =
-        companies.find(
-          (company) =>
-            company.id === newCompanyId
-        );
-
-      replaceUser({
-        ...user,
-        companyId: newCompanyId,
-        companyName:
-          selectedCompany?.name ?? null,
-      });
-
-      setSuccess(
-        `${user.fullName || user.email} was assigned to ${
-          selectedCompany?.name ?? "the company"
-        }.`
-      );
+      const updatedUser = await updateAdminUserRole(user.id, newRole, newCompanyId);
+      replaceUser(updatedUser);
+      setPendingRoles((previous) => ({ ...previous, [user.id]: undefined }));
+      setSuccess(`${user.fullName || user.email} was assigned to ${updatedUser.companyName}.`);
     } catch (requestError) {
-      setError(
-        requestError.message ||
-          "Unable to update company assignment."
-      );
-
-      // Reload because removing the old company may have
-      // succeeded before assigning the new company failed.
-      await loadData();
+      setError(requestError.message || "Unable to update company assignment.");
     } finally {
       setUpdatingId(null);
     }
   };
-
-  // =========================================================
-  // ENABLE / DISABLE USER
-  // =========================================================
 
   const handleStatusChange = async (
     user
@@ -403,7 +313,7 @@ function AdminUsersPage() {
                 updatingId === user.id;
 
               const allowCompany =
-                canHaveCompany(user.role);
+                canHaveCompany(pendingRoles[user.id] || user.role);
 
               return (
                 <tr
@@ -438,7 +348,7 @@ function AdminUsersPage() {
 
                   <td className="px-5 py-4">
                     <select
-                      value={user.role ?? ""}
+                      value={pendingRoles[user.id] || user.role || ""}
                       disabled={updating}
                       onChange={(event) =>
                         handleRoleChange(
@@ -490,8 +400,8 @@ function AdminUsersPage() {
                         }
                         className="h-10 min-w-45 rounded-xl border border-neutral-200 bg-white px-3 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
                       >
-                        <option value="">
-                          No company
+                        <option value="" disabled>
+                          Select company
                         </option>
 
                         {companies
@@ -515,6 +425,9 @@ function AdminUsersPage() {
                       </select>
                     </div>
 
+                    {pendingRoles[user.id] && (
+                      <p className="mt-1 text-xs text-violet-600">Select a company to save this role.</p>
+                    )}
                     {!allowCompany && (
                       <p className="mt-1 text-[11px] text-neutral-400">
                         Company assignment is not

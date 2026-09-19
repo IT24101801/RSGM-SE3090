@@ -301,6 +301,9 @@ public class JobRequisitionService
 
         // Old rejection no longer represents
         // the current submitted version.
+        requisition.HrFeedback =
+            null;
+
         requisition.ReviewedByUserId =
             null;
 
@@ -335,7 +338,8 @@ public class JobRequisitionService
         return await _context.JobRequisitions
             .AsNoTracking()
             .Where(x =>
-                x.CompanyId == companyId.Value)
+                x.CompanyId == companyId.Value &&
+                x.Status != JobRequisitionStatus.Draft)
             .Include(x => x.Company)
             .Include(x => x.Recruiter)
             .Include(x => x.ReviewedByUser)
@@ -372,7 +376,8 @@ public class JobRequisitionService
                 .FirstOrDefaultAsync(x =>
                     x.Id == requisitionId &&
                     x.CompanyId ==
-                        companyId.Value);
+                        companyId.Value &&
+                    x.Status != JobRequisitionStatus.Draft);
 
         return requisition == null
             ? null

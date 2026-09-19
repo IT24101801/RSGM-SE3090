@@ -353,8 +353,7 @@ await CompanyBackfillSeeder.SeedAsync(
 
 await JobPostingSeeder.SeedAsync(
     app.Services);
-await CompanySeeder.SeedAsync(
-    app.Services);
+
 
 
 // ======================================================

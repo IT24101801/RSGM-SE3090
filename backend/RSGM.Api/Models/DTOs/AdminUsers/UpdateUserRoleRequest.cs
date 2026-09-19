@@ -6,4 +6,6 @@ public class UpdateUserRoleRequest
 {
     [Required]
     public string Role { get; set; } = string.Empty;
+
+    public Guid? CompanyId { get; set; }
 }

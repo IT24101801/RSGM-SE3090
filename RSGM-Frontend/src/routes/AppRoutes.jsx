@@ -132,24 +132,6 @@ function AppRoutes() {
         <Route path="interviews" element={<MyInterviewsPage />} />
       </Route>
 
-      <Route
-        path="/recruiter/requisitions"
-        element={
-          <ProtectedRoute allowedRoles={["Recruiter"]}>
-            <RequisitionsPage />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/hr/requisitions"
-        element={
-          <ProtectedRoute allowedRoles={["HRManager"]}>
-            <RequisitionApprovalsPage />
-          </ProtectedRoute>
-        }
-      />
-
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
