@@ -16,4 +16,16 @@ public class UpdateProfileRequest
 
     [MaxLength(1000)]
     public string? Bio { get; set; }
+
+    [Url]
+    [MaxLength(500)]
+    public string? LinkedInUrl { get; set; }
+
+    [Url]
+    [MaxLength(500)]
+    public string? GitHubUrl { get; set; }
+
+    [Url]
+    [MaxLength(500)]
+    public string? PortfolioUrl { get; set; }
 }

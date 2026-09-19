@@ -6,6 +6,13 @@ using RSGM.Api.Models.Entities;
 
 namespace RSGM.Api.Services;
 
+public enum ChangePasswordResult
+{
+    Success,
+    UserNotFound,
+    Failed
+}
+
 public class JobSeekerProfileService
 {
     private readonly ApplicationDbContext _context;
@@ -38,7 +45,10 @@ public class JobSeekerProfileService
             Email = user.Email!,
             Headline = profile?.Headline,
             Location = profile?.Location,
-            Bio = profile?.Bio
+            Bio = profile?.Bio,
+            LinkedInUrl = profile?.LinkedInUrl,
+            GitHubUrl = profile?.GitHubUrl,
+            PortfolioUrl = profile?.PortfolioUrl
         };
     }
 
@@ -76,6 +86,9 @@ public class JobSeekerProfileService
         profile.Headline = request.Headline?.Trim();
         profile.Location = request.Location?.Trim();
         profile.Bio = request.Bio?.Trim();
+        profile.LinkedInUrl = Clean(request.LinkedInUrl);
+        profile.GitHubUrl = Clean(request.GitHubUrl);
+        profile.PortfolioUrl = Clean(request.PortfolioUrl);
         profile.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
@@ -86,7 +99,38 @@ public class JobSeekerProfileService
             Email = user.Email!,
             Headline = profile.Headline,
             Location = profile.Location,
-            Bio = profile.Bio
+            Bio = profile.Bio,
+            LinkedInUrl = profile.LinkedInUrl,
+            GitHubUrl = profile.GitHubUrl,
+            PortfolioUrl = profile.PortfolioUrl
         };
     }
+
+    public async Task<(ChangePasswordResult Result, IEnumerable<string> Errors)> ChangePasswordAsync(
+        Guid userId,
+        ChangePasswordDto request)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+
+        if (user == null)
+        {
+            return (ChangePasswordResult.UserNotFound, Array.Empty<string>());
+        }
+
+        var result = await _userManager.ChangePasswordAsync(
+            user,
+            request.CurrentPassword,
+            request.NewPassword);
+
+        if (!result.Succeeded)
+        {
+            var errors = result.Errors.Select(e => e.Description).ToList();
+            return (ChangePasswordResult.Failed, errors);
+        }
+
+        return (ChangePasswordResult.Success, Array.Empty<string>());
+    }
+
+    private static string? Clean(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

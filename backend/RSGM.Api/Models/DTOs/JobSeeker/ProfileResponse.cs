@@ -11,4 +11,10 @@ public class ProfileResponse
     public string? Location { get; set; }
 
     public string? Bio { get; set; }
+
+    public string? LinkedInUrl { get; set; }
+
+    public string? GitHubUrl { get; set; }
+
+    public string? PortfolioUrl { get; set; }
 }

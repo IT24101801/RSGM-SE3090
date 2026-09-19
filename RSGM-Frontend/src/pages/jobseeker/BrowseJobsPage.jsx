@@ -1,17 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertCircle, Briefcase, CheckCircle2, Loader2, MapPin, Search, Sparkles,
+  AlertCircle, Briefcase, BriefcaseBusiness, CalendarDays, CheckCircle2,
+  ChevronDown, ChevronUp, Clock3, Loader2, MapPin, Search, Sparkles, WalletCards,
 } from "lucide-react";
 
 import { getJobPostings } from "../../services/jobPostingService";
 import { applyToJob, getMyApplications } from "../../services/jobSeekerApplicationService";
+
+const TYPE_LABELS = {
+  FullTime: "Full-Time",
+  PartTime: "Part-Time",
+  Contract: "Contract",
+  Internship: "Internship",
+};
+
+const MODE_LABELS = { OnSite: "On-site", Remote: "Remote", Hybrid: "Hybrid" };
 
 function BrowseJobsPage() {
   const [jobs, setJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-
+  const [expandedJobId, setExpandedJobId] = useState(null);
   const [appliedJobIds, setAppliedJobIds] = useState(new Set());
   const [applyingJobId, setApplyingJobId] = useState(null);
 
@@ -22,43 +32,39 @@ function BrowseJobsPage() {
       .then(([postings, applications]) => {
         if (ignore) return;
         setJobs(postings);
-        setAppliedJobIds(
-          new Set(
-            applications
-              .filter((a) => a.status !== "Withdrawn")
-              .map((a) => a.jobPostingId)
-          )
-        );
+        setAppliedJobIds(new Set(
+          applications
+            .filter((application) => application.status !== "Withdrawn")
+            .map((application) => application.jobPostingId)
+        ));
       })
-      .catch((err) => {
-        if (!ignore) setError(err.message || "Unable to load jobs.");
+      .catch((requestError) => {
+        if (!ignore) setError(requestError.message || "Unable to load jobs.");
       })
       .finally(() => {
         if (!ignore) setIsLoading(false);
       });
 
-    return () => {
-      ignore = true;
-    };
+    return () => { ignore = true; };
   }, []);
 
   const filteredJobs = useMemo(() => {
-    return jobs.filter(
-      (j) =>
-        j.title.toLowerCase().includes(query.toLowerCase()) ||
-        j.company.toLowerCase().includes(query.toLowerCase())
+    const normalizedQuery = query.trim().toLowerCase();
+    return jobs.filter((job) =>
+      job.title.toLowerCase().includes(normalizedQuery) ||
+      job.company.toLowerCase().includes(normalizedQuery) ||
+      job.location.toLowerCase().includes(normalizedQuery)
     );
   }, [jobs, query]);
 
   const handleApply = async (jobId) => {
     setError("");
     setApplyingJobId(jobId);
-
     try {
       await applyToJob(jobId);
-      setAppliedJobIds((prev) => new Set(prev).add(jobId));
-    } catch (err) {
-      setError(err.message || "Unable to submit application.");
+      setAppliedJobIds((previous) => new Set(previous).add(jobId));
+    } catch (requestError) {
+      setError(requestError.message || "Unable to submit application.");
     } finally {
       setApplyingJobId(null);
     }
@@ -67,89 +73,97 @@ function BrowseJobsPage() {
   return (
     <div>
       <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-50 text-violet-600 text-[11px] font-semibold">
-        <Sparkles size={12} />
-        BROWSE JOBS
+        <Sparkles size={12} /> BROWSE JOBS
       </div>
 
       <h1 className="mt-4 text-3xl sm:text-4xl font-semibold tracking-tight">Jobs for you</h1>
-      <p className="mt-2 text-neutral-500">
-        Open roles matching your profile.
-      </p>
+      <p className="mt-2 text-neutral-500">Browse active opportunities and review their complete requirements.</p>
 
       <div className="relative mt-8 max-w-sm">
         <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search jobs or companies..."
-          className="w-full h-11 rounded-xl border border-neutral-200 bg-white pl-11 pr-4 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
-        />
+        <input value={query} onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search jobs, companies or locations..."
+          className="w-full h-11 rounded-xl border border-neutral-200 bg-white pl-11 pr-4 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition" />
       </div>
 
       {error && (
         <div className="mt-5 flex items-start gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600 max-w-lg">
-          <AlertCircle size={17} className="mt-0.5 shrink-0" />
-          <span>{error}</span>
+          <AlertCircle size={17} className="mt-0.5 shrink-0" /><span>{error}</span>
         </div>
       )}
 
       {isLoading ? (
         <div className="mt-8 flex items-center gap-2 text-sm text-neutral-400">
-          <Loader2 size={18} className="animate-spin" />
-          Loading jobs...
+          <Loader2 size={18} className="animate-spin" /> Loading jobs...
         </div>
       ) : (
         <div className="mt-6 space-y-4">
-          {filteredJobs.map((j) => {
-            const applied = appliedJobIds.has(j.id);
-            const isApplying = applyingJobId === j.id;
+          {filteredJobs.map((job) => {
+            const applied = appliedJobIds.has(job.id);
+            const isApplying = applyingJobId === job.id;
+            const expanded = expandedJobId === job.id;
 
             return (
-              <div
-                key={j.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30"
-              >
-                <div className="flex items-start gap-4 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
-                    <Briefcase size={20} className="text-violet-600" />
-                  </div>
-
-                  <div className="min-w-0">
-                    <p className="font-semibold text-neutral-900">{j.title}</p>
-                    <p className="mt-0.5 text-sm text-neutral-500">
-                      {j.company} · <span className="inline-flex items-center gap-1"><MapPin size={12} />{j.location}</span>
-                    </p>
-                    {j.description && (
-                      <p className="mt-1.5 text-sm text-neutral-500 line-clamp-2 max-w-xl">{j.description}</p>
-                    )}
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {j.requiredSkills.map((s) => (
-                        <span key={s} className="px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 text-[11px] font-medium">
-                          {s}
-                        </span>
-                      ))}
+              <article key={job.id}
+                className="p-5 rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30">
+                <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
+                  <div className="flex items-start gap-4 min-w-0">
+                    <CompanyLogo job={job} />
+                    <div className="min-w-0">
+                      <p className="font-semibold text-neutral-900">{job.title}</p>
+                      <p className="mt-0.5 text-sm text-neutral-500">{job.company}</p>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-neutral-500">
+                        <span className="inline-flex items-center gap-1"><MapPin size={12} />{job.location}</span>
+                        <span className="inline-flex items-center gap-1"><BriefcaseBusiness size={12} />{TYPE_LABELS[job.employmentType] ?? job.employmentType}</span>
+                        <span className="inline-flex items-center gap-1"><Clock3 size={12} />{MODE_LABELS[job.workMode] ?? job.workMode}</span>
+                        <span className="inline-flex items-center gap-1"><CalendarDays size={12} />Apply by {formatDate(job.applicationDeadline)}</span>
+                      </div>
+                      {job.description && (
+                        <p className="mt-3 text-sm text-neutral-500 line-clamp-2 max-w-2xl">{job.description}</p>
+                      )}
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {job.requiredSkills.map((skill) => (
+                          <span key={skill} className="px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 text-[11px] font-medium">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium text-neutral-600">
+                        <span>{job.experienceLevel} level</span>
+                        <span>{job.employmentType === "Internship" ? "No experience required" : `${job.minExperienceYears} year${job.minExperienceYears === 1 ? "" : "s"} minimum`}</span>
+                        <span className="inline-flex items-center gap-1"><WalletCards size={12} />{formatSalary(job) || "Salary not disclosed"}</span>
+                      </div>
                     </div>
                   </div>
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button type="button" onClick={() => setExpandedJobId(expanded ? null : job.id)}
+                      className="h-10 px-4 rounded-xl border border-neutral-200 text-neutral-600 text-sm font-semibold flex items-center gap-1.5">
+                      {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Details
+                    </button>
+                    {applied ? (
+                      <span className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-semibold">
+                        <CheckCircle2 size={14} /> Applied
+                      </span>
+                    ) : (
+                      <button onClick={() => handleApply(job.id)} disabled={isApplying}
+                        className="h-10 px-4 rounded-xl bg-neutral-900 text-white text-sm font-semibold hover:bg-neutral-800 transition disabled:opacity-60 flex items-center gap-2">
+                        {isApplying && <Loader2 size={14} className="animate-spin" />} Apply
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-4 shrink-0">
-                  {applied ? (
-                    <span className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-semibold">
-                      <CheckCircle2 size={14} />
-                      Applied
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => handleApply(j.id)}
-                      disabled={isApplying}
-                      className="h-10 px-4 rounded-xl bg-neutral-900 text-white text-sm font-semibold hover:bg-neutral-800 active:scale-[0.99] transition disabled:opacity-60 flex items-center gap-2"
-                    >
-                      {isApplying && <Loader2 size={14} className="animate-spin" />}
-                      Apply
-                    </button>
-                  )}
-                </div>
-              </div>
+                {expanded && (
+                  <div className="mt-5 pt-5 border-t border-neutral-100 grid md:grid-cols-2 gap-6">
+                    <DetailSection title="Responsibilities" text={job.responsibilities} />
+                    <DetailSection title="Requirements" text={job.requirements} />
+                    <div className="md:col-span-2 text-xs text-neutral-400">
+                      Posted {formatDateTime(job.postedDate)}
+                    </div>
+                  </div>
+                )}
+              </article>
             );
           })}
 
@@ -162,6 +176,46 @@ function BrowseJobsPage() {
       )}
     </div>
   );
+}
+
+function CompanyLogo({ job }) {
+  if (job.companyLogoUrl) {
+    return <img src={job.companyLogoUrl} alt={`${job.company} logo`}
+      className="w-12 h-12 rounded-2xl border border-neutral-100 bg-white object-contain p-1 shrink-0" />;
+  }
+  return (
+    <div className="w-12 h-12 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
+      <Briefcase size={20} className="text-violet-600" />
+    </div>
+  );
+}
+
+function DetailSection({ title, text }) {
+  return (
+    <section>
+      <h3 className="text-sm font-semibold text-neutral-800">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-neutral-500 whitespace-pre-line">{text || "Not provided."}</p>
+    </section>
+  );
+}
+
+function formatSalary(job) {
+  if (job.minSalary == null && job.maxSalary == null) return "";
+  const formatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+  const min = job.minSalary == null ? "" : formatter.format(job.minSalary);
+  const max = job.maxSalary == null ? "" : formatter.format(job.maxSalary);
+  const range = min && max ? `${min}–${max}` : min || max;
+  return `${job.currency ?? ""} ${range}`.trim();
+}
+
+function formatDate(value) {
+  if (!value) return "Not specified";
+  return new Date(`${value}T00:00:00`).toLocaleDateString();
+}
+
+function formatDateTime(value) {
+  if (!value) return "";
+  return new Date(value).toLocaleDateString();
 }
 
 export default BrowseJobsPage;

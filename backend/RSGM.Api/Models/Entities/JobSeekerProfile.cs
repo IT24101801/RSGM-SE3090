@@ -13,6 +13,12 @@ public class JobSeekerProfile
 
     public string? Bio { get; set; }
 
+    public string? LinkedInUrl { get; set; }
+
+    public string? GitHubUrl { get; set; }
+
+    public string? PortfolioUrl { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }
