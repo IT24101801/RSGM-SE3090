@@ -62,6 +62,9 @@ public class ApplicationDbContext
     public DbSet<CompanyMember> CompanyMembers
         => Set<CompanyMember>();
 
+    public DbSet<JobRequisition> JobRequisitions 
+        =>Set<JobRequisition>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -419,5 +422,92 @@ public class ApplicationDbContext
                 .HasForeignKey(x => x.JobPostingId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        builder.Entity<JobRequisition>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.Property(
+                        x => x.PositionTitle)
+                    .HasMaxLength(150)
+                    .IsRequired();
+
+                entity.Property(
+                        x => x.Department)
+                    .HasMaxLength(150)
+                    .IsRequired();
+
+                entity.Property(
+                        x => x.Location)
+                    .HasMaxLength(150)
+                    .IsRequired();
+
+                entity.Property(
+                        x => x.Currency)
+                    .HasMaxLength(10)
+                    .IsRequired();
+
+                entity.Property(
+                        x => x.Description)
+                    .HasMaxLength(3000);
+
+                entity.Property(
+                        x => x.Responsibilities)
+                    .HasMaxLength(3000);
+
+                entity.Property(
+                        x => x.Requirements)
+                    .HasMaxLength(3000);
+
+                entity.Property(
+                        x => x.Justification)
+                    .HasMaxLength(2000);
+
+                entity.Property(
+                        x => x.HrFeedback)
+                    .HasMaxLength(2000);
+
+                entity.Property(
+                        x => x.MinSalary)
+                    .HasPrecision(18, 2);
+
+                entity.Property(
+                        x => x.MaxSalary)
+                    .HasPrecision(18, 2);
+
+                entity.HasOne(
+                        x => x.Company)
+                    .WithMany()
+                    .HasForeignKey(
+                        x => x.CompanyId)
+                    .OnDelete(
+                        DeleteBehavior.Restrict);
+
+                entity.HasOne(
+                        x => x.Recruiter)
+                    .WithMany()
+                    .HasForeignKey(
+                        x => x.RecruiterId)
+                    .OnDelete(
+                        DeleteBehavior.Restrict);
+
+                entity.HasOne(
+                        x => x.ReviewedByUser)
+                    .WithMany()
+                    .HasForeignKey(
+                        x => x.ReviewedByUserId)
+                    .OnDelete(
+                        DeleteBehavior.Restrict);
+
+                entity.HasIndex(
+                    x => x.CompanyId);
+
+                entity.HasIndex(
+                    x => x.RecruiterId);
+
+                entity.HasIndex(
+                    x => x.Status);
+            }
+        );
     }
 }

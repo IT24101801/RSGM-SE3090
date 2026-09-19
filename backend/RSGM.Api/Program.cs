@@ -256,6 +256,7 @@ builder.Services.AddScoped<AdminCompanyService>();
 
 builder.Services.AddScoped<RecruiterJobPostingService>();
 
+builder.Services.AddScoped<JobRequisitionService>();
 
 
 
