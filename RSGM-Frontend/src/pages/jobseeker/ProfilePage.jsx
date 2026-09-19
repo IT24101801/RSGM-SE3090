@@ -19,6 +19,15 @@ import {
 } from "../../services/jobSeekerSkillService";
 import { getSkills } from "../../services/skillService";
 import { deleteCv, getCv, uploadCv } from "../../services/jobSeekerCvService";
+import {
+  firstValidationMessage,
+  validateCv,
+  validateEducation,
+  validatePasswordChange,
+  validateProfile,
+  validateSkill,
+  validateWorkExperience,
+} from "../../utils/jobSeekerValidation";
 
 const EMPTY_EDUCATION = {
   institution: "", degree: "", fieldOfStudy: "", startDate: "", endDate: "",
@@ -179,6 +188,13 @@ function ProfilePage() {
 
   const handleSaveProfile = async () => {
     setSaveError("");
+
+    const validationErrors = validateProfile(profile);
+    if (Object.keys(validationErrors).length > 0) {
+      setSaveError(firstValidationMessage(validationErrors));
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -213,9 +229,19 @@ function ProfilePage() {
   const availableCatalog = catalog.filter((s) => !addedSkillIds.has(s.id));
 
   const addSkill = async () => {
-    if (!selectedSkillId) return;
-
     setSkillsError("");
+
+    const validationErrors = validateSkill(
+      selectedSkillId,
+      selectedProficiencyLevel,
+      skills
+    );
+
+    if (Object.keys(validationErrors).length > 0) {
+      setSkillsError(firstValidationMessage(validationErrors));
+      return;
+    }
+
     setIsAddingSkill(true);
 
     try {
@@ -262,6 +288,14 @@ function ProfilePage() {
     if (!file) return;
 
     setCvError("");
+
+    const validationError = validateCv(file);
+    if (validationError) {
+      setCvError(validationError);
+      e.target.value = "";
+      return;
+    }
+
     setIsUploading(true);
 
     try {
@@ -295,13 +329,14 @@ function ProfilePage() {
   const handleChangePassword = async () => {
     setPasswordError("");
 
-    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
-      setPasswordError("Please fill in all password fields.");
-      return;
-    }
+    const validationErrors = validatePasswordChange(
+      passwordForm.currentPassword,
+      passwordForm.newPassword,
+      passwordForm.confirmPassword
+    );
 
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordError("New password and confirmation do not match.");
+    if (Object.keys(validationErrors).length > 0) {
+      setPasswordError(firstValidationMessage(validationErrors));
       return;
     }
 
@@ -341,8 +376,15 @@ function ProfilePage() {
 
   const saveEducation = async (event) => {
     event.preventDefault();
-    setEducationSaving(true);
     setEducationError("");
+
+    const validationErrors = validateEducation(educationForm);
+    if (Object.keys(validationErrors).length > 0) {
+      setEducationError(firstValidationMessage(validationErrors));
+      return;
+    }
+
+    setEducationSaving(true);
     try {
       const payload = {
         ...educationForm,
@@ -398,8 +440,15 @@ function ProfilePage() {
 
   const saveExperience = async (event) => {
     event.preventDefault();
-    setExperienceSaving(true);
     setExperienceError("");
+
+    const validationErrors = validateWorkExperience(experienceForm);
+    if (Object.keys(validationErrors).length > 0) {
+      setExperienceError(firstValidationMessage(validationErrors));
+      return;
+    }
+
+    setExperienceSaving(true);
     try {
       const payload = {
         ...experienceForm,
@@ -502,6 +551,7 @@ function ProfilePage() {
               <Field label="Full name">
                 <input
                   value={profile.fullName}
+                  maxLength={100}
                   onChange={(e) => updateField("fullName", e.target.value)}
                   className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
                 />
@@ -510,6 +560,7 @@ function ProfilePage() {
               <Field label="Headline">
                 <input
                   value={profile.headline}
+                  maxLength={150}
                   onChange={(e) => updateField("headline", e.target.value)}
                   placeholder="e.g. Frontend Engineer"
                   className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
@@ -519,6 +570,7 @@ function ProfilePage() {
               <Field label="Location">
                 <input
                   value={profile.location}
+                  maxLength={150}
                   onChange={(e) => updateField("location", e.target.value)}
                   className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
                 />
@@ -527,6 +579,7 @@ function ProfilePage() {
               <Field label="About you">
                 <textarea
                   value={profile.bio}
+                  maxLength={1000}
                   onChange={(e) => updateField("bio", e.target.value)}
                   rows={3}
                   className="w-full rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 py-3 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition resize-none"
@@ -537,6 +590,7 @@ function ProfilePage() {
                 <input
                   type="url"
                   value={profile.linkedInUrl}
+                  maxLength={500}
                   onChange={(e) => updateField("linkedInUrl", e.target.value)}
                   placeholder="https://www.linkedin.com/in/your-name"
                   className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
@@ -547,6 +601,7 @@ function ProfilePage() {
                 <input
                   type="url"
                   value={profile.gitHubUrl}
+                  maxLength={500}
                   onChange={(e) => updateField("gitHubUrl", e.target.value)}
                   placeholder="https://github.com/your-username"
                   className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
@@ -557,6 +612,7 @@ function ProfilePage() {
                 <input
                   type="url"
                   value={profile.portfolioUrl}
+                  maxLength={500}
                   onChange={(e) => updateField("portfolioUrl", e.target.value)}
                   placeholder="https://your-portfolio.com"
                   className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
@@ -863,6 +919,14 @@ function ProfilePage() {
                 )}
                 Add
               </button>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-neutral-400 sm:grid-cols-5">
+              <span>1 · Beginner</span>
+              <span>2 · Basic</span>
+              <span>3 · Intermediate</span>
+              <span>4 · Advanced</span>
+              <span>5 · Expert</span>
             </div>
 
             {availableCatalog.length === 0 && !skillsLoading && (
