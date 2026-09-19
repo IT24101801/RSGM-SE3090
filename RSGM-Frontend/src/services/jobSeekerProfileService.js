@@ -4,7 +4,11 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 async function readResponse(response) {
   const text = await response.text();
-  if (!text) return {};
+
+  if (!text) {
+    return {};
+  }
+
   try {
     return JSON.parse(text);
   } catch {
@@ -13,27 +17,54 @@ async function readResponse(response) {
 }
 
 function getErrorMessage(data, fallback) {
-  if (!data) return fallback;
-  if (typeof data === "string") return data;
-  if (data.message) return data.message;
-  if (Array.isArray(data.errors) && data.errors.length > 0) return data.errors.join(" ");
-  if (data.errors && typeof data.errors === "object") {
-    return Object.values(data.errors).flat().join(" ");
+  if (!data) {
+    return fallback;
   }
+
+  if (typeof data === "string") {
+    return data;
+  }
+
+  if (data.message) {
+    return data.message;
+  }
+
+  if (Array.isArray(data.errors) && data.errors.length > 0) {
+    return data.errors.join(" ");
+  }
+
+  if (data.errors && typeof data.errors === "object") {
+    return Object.values(data.errors)
+      .flat()
+      .join(" ");
+  }
+
   return fallback;
 }
 
+// =========================================================
+// PROFILE
+// =========================================================
+
 // GET /api/jobseeker/profile
 export async function getProfile() {
-  const response = await fetch(`${API_BASE_URL}/api/jobseeker/profile`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/api/jobseeker/profile`,
+    {
+      method: "GET",
+      headers: getAuthHeaders(),
+    }
+  );
 
   const data = await readResponse(response);
 
   if (!response.ok) {
-    throw new Error(getErrorMessage(data, "Unable to load profile."));
+    throw new Error(
+      getErrorMessage(
+        data,
+        "Unable to load profile."
+      )
+    );
   }
 
   return data;
@@ -41,112 +72,215 @@ export async function getProfile() {
 
 // PUT /api/jobseeker/profile
 export async function updateProfile(profileData) {
-  const response = await fetch(`${API_BASE_URL}/api/jobseeker/profile`, {
-    method: "PUT",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(profileData),
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/api/jobseeker/profile`,
+    {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(profileData),
+    }
+  );
 
   const data = await readResponse(response);
 
   if (!response.ok) {
-    throw new Error(getErrorMessage(data, "Unable to save profile."));
+    throw new Error(
+      getErrorMessage(
+        data,
+        "Unable to save profile."
+      )
+    );
   }
 
   return data;
 }
+
+// =========================================================
+// PASSWORD
+// =========================================================
 
 // PUT /api/jobseeker/profile/password
-export async function changePassword(currentPassword, newPassword) {
-  const response = await fetch(`${API_BASE_URL}/api/jobseeker/profile/password`, {
-    method: "PUT",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ currentPassword, newPassword }),
-  });
+export async function changePassword(
+  currentPassword,
+  newPassword
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/jobseeker/profile/password`,
+    {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        currentPassword,
+        newPassword,
+      }),
+    }
+  );
 
   const data = await readResponse(response);
 
   if (!response.ok) {
-    throw new Error(getErrorMessage(data, "Unable to update password."));
+    throw new Error(
+      getErrorMessage(
+        data,
+        "Unable to update password."
+      )
+    );
   }
 
   return data;
 }
+
+// =========================================================
+// DELETE ACCOUNT
+// =========================================================
 
 // DELETE /api/jobseeker/account
 export async function deleteAccount(currentPassword) {
-  const response = await fetch(`${API_BASE_URL}/api/jobseeker/account`, {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ currentPassword }),
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/api/jobseeker/account`,
+    {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        currentPassword,
+      }),
+    }
+  );
 
   const data = await readResponse(response);
 
   if (!response.ok) {
-    throw new Error(getErrorMessage(data, "Unable to delete account."));
+    throw new Error(
+      getErrorMessage(
+        data,
+        "Unable to delete account."
+      )
+    );
   }
 
   return data;
 }
 
-async function profileCollectionRequest(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: getAuthHeaders(),
-  });
+// =========================================================
+// SHARED PROFILE REQUEST HELPER
+// =========================================================
+
+async function profileCollectionRequest(
+  path,
+  options = {}
+) {
+  const response = await fetch(
+    `${API_BASE_URL}${path}`,
+    {
+      ...options,
+      headers: getAuthHeaders(),
+    }
+  );
 
   const data = await readResponse(response);
+
   if (!response.ok) {
-    throw new Error(getErrorMessage(data, "Profile request failed."));
+    throw new Error(
+      getErrorMessage(
+        data,
+        "Profile request failed."
+      )
+    );
   }
+
   return data;
 }
 
+// =========================================================
+// EDUCATION CRUD
+// =========================================================
+
+// GET /api/jobseeker/education
 export function getEducationRecords() {
-  return profileCollectionRequest("/api/jobseeker/education");
+  return profileCollectionRequest(
+    "/api/jobseeker/education"
+  );
 }
 
+// POST /api/jobseeker/education
 export function createEducationRecord(record) {
-  return profileCollectionRequest("/api/jobseeker/education", {
-    method: "POST",
-    body: JSON.stringify(record),
-  });
+  return profileCollectionRequest(
+    "/api/jobseeker/education",
+    {
+      method: "POST",
+      body: JSON.stringify(record),
+    }
+  );
 }
 
-export function updateEducationRecord(id, record) {
-  return profileCollectionRequest(`/api/jobseeker/education/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(record),
-  });
+// PUT /api/jobseeker/education/{id}
+export function updateEducationRecord(
+  id,
+  record
+) {
+  return profileCollectionRequest(
+    `/api/jobseeker/education/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(record),
+    }
+  );
 }
 
+// DELETE /api/jobseeker/education/{id}
 export function deleteEducationRecord(id) {
-  return profileCollectionRequest(`/api/jobseeker/education/${id}`, {
-    method: "DELETE",
-  });
+  return profileCollectionRequest(
+    `/api/jobseeker/education/${id}`,
+    {
+      method: "DELETE",
+    }
+  );
 }
 
+// =========================================================
+// WORK EXPERIENCE CRUD
+// =========================================================
+
+// GET /api/jobseeker/work-experience
 export function getWorkExperiences() {
-  return profileCollectionRequest("/api/jobseeker/work-experience");
+  return profileCollectionRequest(
+    "/api/jobseeker/work-experience"
+  );
 }
 
-export function createWorkExperience(experience) {
-  return profileCollectionRequest("/api/jobseeker/work-experience", {
-    method: "POST",
-    body: JSON.stringify(experience),
-  });
+// POST /api/jobseeker/work-experience
+export function createWorkExperience(
+  experience
+) {
+  return profileCollectionRequest(
+    "/api/jobseeker/work-experience",
+    {
+      method: "POST",
+      body: JSON.stringify(experience),
+    }
+  );
 }
 
-export function updateWorkExperience(id, experience) {
-  return profileCollectionRequest(`/api/jobseeker/work-experience/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(experience),
-  });
+// PUT /api/jobseeker/work-experience/{id}
+export function updateWorkExperience(
+  id,
+  experience
+) {
+  return profileCollectionRequest(
+    `/api/jobseeker/work-experience/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(experience),
+    }
+  );
 }
 
+// DELETE /api/jobseeker/work-experience/{id}
 export function deleteWorkExperience(id) {
-  return profileCollectionRequest(`/api/jobseeker/work-experience/${id}`, {
-    method: "DELETE",
-  });
+  return profileCollectionRequest(
+    `/api/jobseeker/work-experience/${id}`,
+    {
+      method: "DELETE",
+    }
+  );
 }

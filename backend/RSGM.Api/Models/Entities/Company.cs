@@ -6,6 +6,8 @@ public class Company
 
     public string Name { get; set; } = string.Empty;
 
+    public string NormalizedName { get; set; } = string.Empty;
+
     public string? Description { get; set; }
 
     public string? Website { get; set; }

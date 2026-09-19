@@ -49,7 +49,7 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
-      {/* ================= ADMIN (SystemAdmin only) ================= */}
+      {/* ================= ADMIN ================= */}
       <Route
         path="/admin"
         element={
@@ -102,7 +102,6 @@ function AppRoutes() {
         <Route path="analytics" element={<AnalyticsPage />} />
       </Route>
 
-      {/* ================= JOB SEEKER ================= */}
       {/* ================= JOB SEEKER ================= */}
       <Route
         path="/jobs"

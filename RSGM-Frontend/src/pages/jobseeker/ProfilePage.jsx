@@ -11,9 +11,23 @@ import {
   deleteEducationRecord, deleteWorkExperience, getEducationRecords, getProfile,
   getWorkExperiences, updateEducationRecord, updateProfile, updateWorkExperience,
 } from "../../services/jobSeekerProfileService";
-import { addMySkill, getMySkills, removeMySkill } from "../../services/jobSeekerSkillService";
+import {
+  addMySkill,
+  getMySkills,
+  removeMySkill,
+  updateMySkillProficiency,
+} from "../../services/jobSeekerSkillService";
 import { getSkills } from "../../services/skillService";
 import { deleteCv, getCv, uploadCv } from "../../services/jobSeekerCvService";
+import {
+  firstValidationMessage,
+  validateCv,
+  validateEducation,
+  validatePasswordChange,
+  validateProfile,
+  validateSkill,
+  validateWorkExperience,
+} from "../../utils/jobSeekerValidation";
 
 const EMPTY_EDUCATION = {
   institution: "", degree: "", fieldOfStudy: "", startDate: "", endDate: "",
@@ -42,7 +56,9 @@ function ProfilePage() {
   const [skillsError, setSkillsError] = useState("");
   const [catalog, setCatalog] = useState([]);
   const [selectedSkillId, setSelectedSkillId] = useState("");
+  const [selectedProficiencyLevel, setSelectedProficiencyLevel] = useState(3);
   const [isAddingSkill, setIsAddingSkill] = useState(false);
+  const [updatingSkillId, setUpdatingSkillId] = useState(null);
 
   const [educationRecords, setEducationRecords] = useState([]);
   const [educationForm, setEducationForm] = useState(null);
@@ -172,6 +188,13 @@ function ProfilePage() {
 
   const handleSaveProfile = async () => {
     setSaveError("");
+
+    const validationErrors = validateProfile(profile);
+    if (Object.keys(validationErrors).length > 0) {
+      setSaveError(firstValidationMessage(validationErrors));
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -206,15 +229,26 @@ function ProfilePage() {
   const availableCatalog = catalog.filter((s) => !addedSkillIds.has(s.id));
 
   const addSkill = async () => {
-    if (!selectedSkillId) return;
-
     setSkillsError("");
+
+    const validationErrors = validateSkill(
+      selectedSkillId,
+      selectedProficiencyLevel,
+      skills
+    );
+
+    if (Object.keys(validationErrors).length > 0) {
+      setSkillsError(firstValidationMessage(validationErrors));
+      return;
+    }
+
     setIsAddingSkill(true);
 
     try {
-      const added = await addMySkill(selectedSkillId);
+      const added = await addMySkill(selectedSkillId, selectedProficiencyLevel);
       setSkills((prev) => [...prev, added].sort((a, b) => a.name.localeCompare(b.name)));
       setSelectedSkillId("");
+      setSelectedProficiencyLevel(3);
     } catch (err) {
       setSkillsError(err.message || "Unable to add skill.");
     } finally {
@@ -233,11 +267,35 @@ function ProfilePage() {
     }
   };
 
+  const updateSkillProficiency = async (skillId, proficiencyLevel) => {
+    setSkillsError("");
+    setUpdatingSkillId(skillId);
+
+    try {
+      const updated = await updateMySkillProficiency(skillId, proficiencyLevel);
+      setSkills((prev) =>
+        prev.map((skill) => (skill.skillId === skillId ? updated : skill))
+      );
+    } catch (err) {
+      setSkillsError(err.message || "Unable to update skill proficiency.");
+    } finally {
+      setUpdatingSkillId(null);
+    }
+  };
+
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setCvError("");
+
+    const validationError = validateCv(file);
+    if (validationError) {
+      setCvError(validationError);
+      e.target.value = "";
+      return;
+    }
+
     setIsUploading(true);
 
     try {
@@ -271,13 +329,14 @@ function ProfilePage() {
   const handleChangePassword = async () => {
     setPasswordError("");
 
-    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
-      setPasswordError("Please fill in all password fields.");
-      return;
-    }
+    const validationErrors = validatePasswordChange(
+      passwordForm.currentPassword,
+      passwordForm.newPassword,
+      passwordForm.confirmPassword
+    );
 
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordError("New password and confirmation do not match.");
+    if (Object.keys(validationErrors).length > 0) {
+      setPasswordError(firstValidationMessage(validationErrors));
       return;
     }
 
@@ -317,8 +376,15 @@ function ProfilePage() {
 
   const saveEducation = async (event) => {
     event.preventDefault();
-    setEducationSaving(true);
     setEducationError("");
+
+    const validationErrors = validateEducation(educationForm);
+    if (Object.keys(validationErrors).length > 0) {
+      setEducationError(firstValidationMessage(validationErrors));
+      return;
+    }
+
+    setEducationSaving(true);
     try {
       const payload = {
         ...educationForm,
@@ -374,8 +440,15 @@ function ProfilePage() {
 
   const saveExperience = async (event) => {
     event.preventDefault();
-    setExperienceSaving(true);
     setExperienceError("");
+
+    const validationErrors = validateWorkExperience(experienceForm);
+    if (Object.keys(validationErrors).length > 0) {
+      setExperienceError(firstValidationMessage(validationErrors));
+      return;
+    }
+
+    setExperienceSaving(true);
     try {
       const payload = {
         ...experienceForm,
@@ -478,6 +551,7 @@ function ProfilePage() {
               <Field label="Full name">
                 <input
                   value={profile.fullName}
+                  maxLength={100}
                   onChange={(e) => updateField("fullName", e.target.value)}
                   className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
                 />
@@ -486,6 +560,7 @@ function ProfilePage() {
               <Field label="Headline">
                 <input
                   value={profile.headline}
+                  maxLength={150}
                   onChange={(e) => updateField("headline", e.target.value)}
                   placeholder="e.g. Frontend Engineer"
                   className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
@@ -495,6 +570,7 @@ function ProfilePage() {
               <Field label="Location">
                 <input
                   value={profile.location}
+                  maxLength={150}
                   onChange={(e) => updateField("location", e.target.value)}
                   className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
                 />
@@ -503,6 +579,7 @@ function ProfilePage() {
               <Field label="About you">
                 <textarea
                   value={profile.bio}
+                  maxLength={1000}
                   onChange={(e) => updateField("bio", e.target.value)}
                   rows={3}
                   className="w-full rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 py-3 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition resize-none"
@@ -513,6 +590,7 @@ function ProfilePage() {
                 <input
                   type="url"
                   value={profile.linkedInUrl}
+                  maxLength={500}
                   onChange={(e) => updateField("linkedInUrl", e.target.value)}
                   placeholder="https://www.linkedin.com/in/your-name"
                   className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
@@ -523,6 +601,7 @@ function ProfilePage() {
                 <input
                   type="url"
                   value={profile.gitHubUrl}
+                  maxLength={500}
                   onChange={(e) => updateField("gitHubUrl", e.target.value)}
                   placeholder="https://github.com/your-username"
                   className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
@@ -533,6 +612,7 @@ function ProfilePage() {
                 <input
                   type="url"
                   value={profile.portfolioUrl}
+                  maxLength={500}
                   onChange={(e) => updateField("portfolioUrl", e.target.value)}
                   placeholder="https://your-portfolio.com"
                   className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
@@ -733,7 +813,7 @@ function ProfilePage() {
       <div className="mt-6 rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30 p-6 max-w-2xl">
         <h2 className="text-lg font-semibold tracking-tight">Skills</h2>
         <p className="mt-1 text-sm text-neutral-500">
-          These are matched against job requirements to calculate your match score.
+          Add your skills and choose a proficiency level from Beginner to Expert.
         </p>
 
         {skillsLoading ? (
@@ -743,20 +823,49 @@ function ProfilePage() {
           </div>
         ) : (
           <>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 space-y-3">
               {skills.map((skill) => (
-                <span
+                <div
                   key={skill.skillId}
-                  className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full bg-violet-50 text-violet-700 text-sm font-medium"
+                  className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-neutral-50/70 p-3 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  {skill.name}
-                  <button
-                    onClick={() => removeSkill(skill.skillId)}
-                    className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-violet-100 transition"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
+                  <div>
+                    <p className="text-sm font-semibold text-neutral-800">{skill.name}</p>
+                    <p className="mt-0.5 text-xs text-neutral-400">
+                      {getProficiencyLabel(skill.proficiencyLevel)}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={skill.proficiencyLevel ?? 3}
+                      disabled={updatingSkillId === skill.skillId}
+                      onChange={(event) =>
+                        updateSkillProficiency(skill.skillId, Number(event.target.value))
+                      }
+                      className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 disabled:opacity-60"
+                    >
+                      <option value={1}>Beginner</option>
+                      <option value={2}>Basic</option>
+                      <option value={3}>Intermediate</option>
+                      <option value={4}>Advanced</option>
+                      <option value={5}>Expert</option>
+                    </select>
+
+                    {updatingSkillId === skill.skillId && (
+                      <Loader2 size={15} className="animate-spin text-neutral-400" />
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => removeSkill(skill.skillId)}
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 text-neutral-400 transition hover:bg-red-50 hover:text-red-500"
+                      aria-label={`Remove ${skill.name}`}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
               ))}
 
               {skills.length === 0 && (
@@ -771,30 +880,58 @@ function ProfilePage() {
               </div>
             )}
 
-            <div className="mt-4 flex items-center gap-2">
+            <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_180px_auto]">
               <select
                 value={selectedSkillId}
-                onChange={(e) => setSelectedSkillId(e.target.value)}
-                className="h-11 w-56 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+                onChange={(event) => setSelectedSkillId(event.target.value)}
+                className="h-11 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
               >
                 <option value="">Select a skill...</option>
-                {availableCatalog.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                {availableCatalog.map((skill) => (
+                  <option key={skill.id} value={skill.id}>
+                    {skill.name}
+                  </option>
                 ))}
               </select>
+
+              <select
+                value={selectedProficiencyLevel}
+                onChange={(event) => setSelectedProficiencyLevel(Number(event.target.value))}
+                className="h-11 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
+              >
+                <option value={1}>Beginner</option>
+                <option value={2}>Basic</option>
+                <option value={3}>Intermediate</option>
+                <option value={4}>Advanced</option>
+                <option value={5}>Expert</option>
+              </select>
+
               <button
+                type="button"
                 onClick={addSkill}
                 disabled={isAddingSkill || !selectedSkillId}
-                className="h-11 px-4 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center gap-1.5 hover:bg-neutral-800 active:scale-[0.99] transition disabled:opacity-60"
+                className="h-11 px-4 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center justify-center gap-1.5 hover:bg-neutral-800 active:scale-[0.99] transition disabled:opacity-60"
               >
-                {isAddingSkill ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                {isAddingSkill ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Plus size={14} />
+                )}
                 Add
               </button>
             </div>
 
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-neutral-400 sm:grid-cols-5">
+              <span>1 · Beginner</span>
+              <span>2 · Basic</span>
+              <span>3 · Intermediate</span>
+              <span>4 · Advanced</span>
+              <span>5 · Expert</span>
+            </div>
+
             {availableCatalog.length === 0 && !skillsLoading && (
               <p className="mt-2 text-xs text-neutral-400">
-                You've added every skill currently in the catalog.
+                You&apos;ve added every skill currently in the catalog.
               </p>
             )}
           </>
@@ -1149,6 +1286,24 @@ function formatMonth(value) {
     month: "short",
     year: "numeric",
   });
+}
+
+
+function getProficiencyLabel(level) {
+  switch (level) {
+    case 1:
+      return "Beginner";
+    case 2:
+      return "Basic";
+    case 3:
+      return "Intermediate";
+    case 4:
+      return "Advanced";
+    case 5:
+      return "Expert";
+    default:
+      return "Intermediate";
+  }
 }
 
 export default ProfilePage;
