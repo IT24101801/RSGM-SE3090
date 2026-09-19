@@ -108,6 +108,14 @@ public class RecruiterJobPostingsController : ControllerBase
                 { message = "Ask the System Administrator to assign your account to a company." }),
             RecruiterJobResult.CompanyInactive => BadRequest(new
                 { message = "Your company is inactive." }),
+            RecruiterJobResult.RequisitionRequired => BadRequest(new
+                { message = "Select an approved job requisition." }),
+            RecruiterJobResult.RequisitionNotApproved => BadRequest(new
+                { message = "This job requires an approved requisition from your company." }),
+            RecruiterJobResult.RequisitionAlreadyUsed => Conflict(new
+                { message = "A posting already exists for this requisition." }),
+            RecruiterJobResult.RequisitionMismatch => BadRequest(new
+                { message = "Position, location, employment, experience and salary must match the approved requisition." }),
             RecruiterJobResult.InvalidSkills => BadRequest(new
                 { message = "One or more selected skills are invalid or inactive." }),
             RecruiterJobResult.InvalidStatus => BadRequest(new

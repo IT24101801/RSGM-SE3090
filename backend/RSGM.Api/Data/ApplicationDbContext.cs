@@ -355,6 +355,14 @@ public class ApplicationDbContext
 
             entity.HasIndex(x => x.CreatedByUserId);
 
+            // Unique nullable index: old seeded jobs stay unlinked.
+            entity.HasIndex(x => x.JobRequisitionId).IsUnique();
+
+            entity.HasOne(x => x.JobRequisition)
+                .WithMany()
+                .HasForeignKey(x => x.JobRequisitionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             entity.HasOne(x => x.CompanyEntity)
                 .WithMany(x => x.JobPostings)
                 .HasForeignKey(x => x.CompanyId)

@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 
 import { getSkills } from "../../services/skillService";
+import { getMyRequisitions } from "../../services/recruiterRequisitionService";
 import {
   createRecruiterJobPosting,
   deleteRecruiterJobPosting,
@@ -42,6 +43,7 @@ function defaultDeadline() {
 
 function emptyForm() {
   return {
+    jobRequisitionId: "",
     title: "",
     location: "",
     employmentType: "FullTime",
@@ -75,6 +77,7 @@ function toPayload(form) {
 function JobPostingsPage() {
   const [postings, setPostings] = useState([]);
   const [skills, setSkills] = useState([]);
+  const [requisitions, setRequisitions] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -85,11 +88,12 @@ function JobPostingsPage() {
 
   useEffect(() => {
     let ignore = false;
-    Promise.all([getRecruiterJobPostings(), getSkills()])
-      .then(([jobData, skillData]) => {
+    Promise.all([getRecruiterJobPostings(), getSkills(), getMyRequisitions()])
+      .then(([jobData, skillData, requisitionData]) => {
         if (!ignore) {
           setPostings(jobData);
           setSkills(skillData.filter((skill) => skill.isActive));
+          setRequisitions(requisitionData);
         }
       })
       .catch((requestError) => {
@@ -101,6 +105,35 @@ function JobPostingsPage() {
     return () => { ignore = true; };
   }, []);
 
+  const availableRequisitions = requisitions.filter((item) =>
+    (item.status === 3 || item.status === "Approved") &&
+    !postings.some((posting) => posting.jobRequisitionId === item.id)
+  );
+
+  const selectRequisition = (id) => {
+    const requisition = availableRequisitions.find((item) => item.id === id);
+    if (!requisition) {
+      setForm(emptyForm());
+      return;
+    }
+    setForm({
+      ...emptyForm(),
+      jobRequisitionId: id,
+      title: requisition.positionTitle,
+      location: requisition.location,
+      employmentType: EMPLOYMENT_TYPES[requisition.employmentType]?.[0] ?? "FullTime",
+      workMode: WORK_MODES[requisition.workMode]?.[0] ?? "OnSite",
+      experienceLevel: EXPERIENCE_LEVELS[requisition.experienceLevel] ?? "Entry",
+      minExperienceYears: requisition.minExperienceYears?.toString() ?? "",
+      minSalary: requisition.minSalary?.toString() ?? "",
+      maxSalary: requisition.maxSalary?.toString() ?? "",
+      currency: requisition.currency || "LKR",
+      description: requisition.description ?? "",
+      responsibilities: requisition.responsibilities ?? "",
+      requirements: requisition.requirements ?? "",
+    });
+  };
+
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm());
@@ -111,6 +144,7 @@ function JobPostingsPage() {
   const openEdit = (posting) => {
     setEditingId(posting.id);
     setForm({
+      jobRequisitionId: posting.jobRequisitionId ?? "",
       title: posting.title,
       location: posting.location,
       employmentType: posting.employmentType,
@@ -204,13 +238,19 @@ function JobPostingsPage() {
             <Sparkles size={12} /> JOB POSTINGS
           </div>
           <h1 className="mt-4 text-3xl sm:text-4xl font-semibold tracking-tight">My Job Postings</h1>
-          <p className="mt-2 text-neutral-500">Create and manage jobs belonging to your company.</p>
+          <p className="mt-2 text-neutral-500">Create a job from an HR-approved requisition, then publish it.</p>
         </div>
-        <button type="button" onClick={openCreate}
-          className="h-12 px-5 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center justify-center gap-2">
+        <button type="button" onClick={openCreate} disabled={loading || availableRequisitions.length === 0}
+          className="h-12 disabled:opacity-50 disabled:cursor-not-allowed px-5 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center justify-center gap-2">
           <Plus size={16} /> New posting
         </button>
       </div>
+
+      {!loading && availableRequisitions.length === 0 && (
+        <p className="mt-4 text-sm text-neutral-500">
+          No unused approved requisitions. <a className="text-blue-600 underline" href="/recruiter/requisitions">View requisitions</a>
+        </p>
+      )}
 
       {error && (
         <div className="mt-5 flex gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
@@ -225,38 +265,55 @@ function JobPostingsPage() {
             <button type="button" onClick={() => setShowForm(false)}><X size={18} /></button>
           </div>
 
+          {!editingId && (
+            <Field label="Approved requisition *">
+              <select required value={form.jobRequisitionId}
+                onChange={(event) => selectRequisition(event.target.value)} className={inputClass}>
+                <option value="">Select an approved requisition</option>
+                {availableRequisitions.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.positionTitle} · {item.department} · {item.headcount} position(s)
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+          {editingId && form.jobRequisitionId && (
+            <p className="mt-3 text-sm text-blue-600">Approved requisition linked. HR-approved job details are locked.</p>
+          )}
+
           <div className="mt-1 grid sm:grid-cols-2 gap-x-4">
             <Field label="Job title *">
-              <input required maxLength={150} value={form.title}
+              <input required readOnly={Boolean(form.jobRequisitionId)} maxLength={150} value={form.title}
                 onChange={(event) => setForm({ ...form, title: event.target.value })}
                 placeholder="Software Engineer" className={inputClass} />
             </Field>
             <Field label="Location *">
-              <input required maxLength={150} value={form.location}
+              <input required readOnly={Boolean(form.jobRequisitionId)} maxLength={150} value={form.location}
                 onChange={(event) => setForm({ ...form, location: event.target.value })}
                 placeholder="Colombo, Sri Lanka" className={inputClass} />
             </Field>
             <Field label="Employment type *">
-              <select value={form.employmentType}
+              <select disabled={Boolean(form.jobRequisitionId)} value={form.employmentType}
                 onChange={(event) => changeEmploymentType(event.target.value)} className={inputClass}>
                 {EMPLOYMENT_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </Field>
             <Field label="Work mode *">
-              <select value={form.workMode}
+              <select disabled={Boolean(form.jobRequisitionId)} value={form.workMode}
                 onChange={(event) => setForm({ ...form, workMode: event.target.value })} className={inputClass}>
                 {WORK_MODES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </Field>
             <Field label="Experience level *">
-              <select value={form.experienceLevel}
+              <select disabled={Boolean(form.jobRequisitionId)} value={form.experienceLevel}
                 onChange={(event) => setForm({ ...form, experienceLevel: event.target.value })} className={inputClass}>
                 {EXPERIENCE_LEVELS.map((level) => <option key={level}>{level}</option>)}
               </select>
             </Field>
             {form.employmentType !== "Internship" && (
               <Field label="Minimum experience (years) *">
-                <input required type="number" min="0" max="50" value={form.minExperienceYears}
+                <input required readOnly={Boolean(form.jobRequisitionId)} type="number" min="0" max="50" value={form.minExperienceYears}
                   onChange={(event) => setForm({ ...form, minExperienceYears: event.target.value })}
                   className={inputClass} />
               </Field>
@@ -291,17 +348,17 @@ function JobPostingsPage() {
             <p className="text-sm font-semibold text-neutral-700">Salary (optional)</p>
             <div className="grid sm:grid-cols-3 gap-x-4">
               <Field label="Minimum salary">
-                <input type="number" min="0" step="0.01" value={form.minSalary}
+                <input readOnly={Boolean(form.jobRequisitionId)} type="number" min="0" step="0.01" value={form.minSalary}
                   onChange={(event) => setForm({ ...form, minSalary: event.target.value })}
                   className={inputClass} />
               </Field>
               <Field label="Maximum salary">
-                <input type="number" min="0" step="0.01" value={form.maxSalary}
+                <input readOnly={Boolean(form.jobRequisitionId)} type="number" min="0" step="0.01" value={form.maxSalary}
                   onChange={(event) => setForm({ ...form, maxSalary: event.target.value })}
                   className={inputClass} />
               </Field>
               <Field label="Currency">
-                <input maxLength={3} value={form.currency}
+                <input readOnly={Boolean(form.jobRequisitionId)} maxLength={3} value={form.currency}
                   onChange={(event) => setForm({ ...form, currency: event.target.value.toUpperCase() })}
                   placeholder="LKR" className={inputClass} />
               </Field>
@@ -328,7 +385,7 @@ function JobPostingsPage() {
           <button disabled={saving}
             className="mt-6 h-11 px-5 rounded-xl bg-blue-600 text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-            Save as draft
+            {editingId ? "Save changes" : "Save as draft"}
           </button>
         </form>
       )}
@@ -359,6 +416,11 @@ function JobPostingsPage() {
                 <span className="inline-flex items-center gap-1"><BriefcaseBusiness size={13} />{labelFor(EMPLOYMENT_TYPES, posting.employmentType)} · {labelFor(WORK_MODES, posting.workMode)}</span>
                 <span className="inline-flex items-center gap-1"><CalendarDays size={13} />Deadline {formatDate(posting.applicationDeadline)}</span>
               </div>
+              {posting.jobRequisitionId ? (
+                <p className="mt-2 text-xs text-blue-600">Linked to approved requisition</p>
+              ) : (
+                <p className="mt-2 text-xs text-amber-700">Legacy posting · approval link required to publish</p>
+              )}
               {posting.description && <p className="mt-4 text-sm text-neutral-500 line-clamp-2">{posting.description}</p>}
               <div className="mt-4 flex flex-wrap gap-1.5">
                 {posting.requiredSkills.map((skill) => (
@@ -378,7 +440,7 @@ function JobPostingsPage() {
               </div>
               <div className="mt-5 flex flex-wrap gap-2">
                 {posting.status !== "Closed" && <ActionButton onClick={() => openEdit(posting)} icon={Pencil} text="Edit" />}
-                {posting.status === "Draft" && (
+                {posting.status === "Draft" && posting.jobRequisitionId && (
                   <ActionButton onClick={() => changeStatus(posting, "Published")}
                     icon={CircleCheck} text="Publish" disabled={busyId === posting.id} />
                 )}

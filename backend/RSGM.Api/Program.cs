@@ -351,8 +351,7 @@ await CompanySeeder.SeedAsync(
 await CompanyBackfillSeeder.SeedAsync(
     app.Services);
 
-await JobPostingSeeder.SeedAsync(
-    app.Services);
+// Job postings now require HR approval; do not seed published sample jobs.
 
 
 
