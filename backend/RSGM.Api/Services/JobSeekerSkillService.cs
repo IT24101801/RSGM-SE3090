@@ -21,7 +21,8 @@ public class JobSeekerSkillService
         _context = context;
     }
 
-    public async Task<List<JobSeekerSkillResponse>> GetByUserIdAsync(Guid userId)
+    public async Task<List<JobSeekerSkillResponse>> GetByUserIdAsync(
+        Guid userId)
     {
         return await _context.JobSeekerSkills
             .AsNoTracking()
@@ -30,20 +31,20 @@ public class JobSeekerSkillService
             .Select(x => new JobSeekerSkillResponse
             {
                 SkillId = x.SkillId,
-                Name = x.Skill.Name
+                Name = x.Skill.Name,
+                ProficiencyLevel = x.ProficiencyLevel
             })
             .ToListAsync();
     }
 
-    // Links an existing, active skill from the admin-managed taxonomy to the
-    // job seeker's profile. Job seekers cannot create new skills themselves;
-    // that stays a SystemAdmin-only capability (see AdminSkillsController).
     public async Task<(AddSkillResult Result, JobSeekerSkillResponse? Skill)> AddAsync(
         Guid userId,
         AddJobSeekerSkillRequest request)
     {
         var skill = await _context.Skills
-            .FirstOrDefaultAsync(x => x.Id == request.SkillId && x.IsActive);
+            .FirstOrDefaultAsync(
+                x => x.Id == request.SkillId &&
+                     x.IsActive);
 
         if (skill == null)
         {
@@ -51,34 +52,49 @@ public class JobSeekerSkillService
         }
 
         var alreadyLinked = await _context.JobSeekerSkills
-            .AnyAsync(x => x.UserId == userId && x.SkillId == skill.Id);
+            .AnyAsync(
+                x => x.UserId == userId &&
+                     x.SkillId == skill.Id);
 
         if (alreadyLinked)
         {
             return (AddSkillResult.AlreadyAdded, null);
         }
 
+        var proficiency = Math.Clamp(
+            request.ProficiencyLevel,
+            1,
+            5);
+
         var link = new JobSeekerSkill
         {
             UserId = userId,
-            SkillId = skill.Id
+            SkillId = skill.Id,
+            ProficiencyLevel = proficiency
         };
 
         _context.JobSeekerSkills.Add(link);
 
         await _context.SaveChangesAsync();
 
-        return (AddSkillResult.Added, new JobSeekerSkillResponse
-        {
-            SkillId = skill.Id,
-            Name = skill.Name
-        });
+        return (
+            AddSkillResult.Added,
+            new JobSeekerSkillResponse
+            {
+                SkillId = skill.Id,
+                Name = skill.Name,
+                ProficiencyLevel = proficiency
+            });
     }
 
-    public async Task<bool> RemoveAsync(Guid userId, Guid skillId)
+    public async Task<bool> RemoveAsync(
+        Guid userId,
+        Guid skillId)
     {
         var link = await _context.JobSeekerSkills
-            .FirstOrDefaultAsync(x => x.UserId == userId && x.SkillId == skillId);
+            .FirstOrDefaultAsync(
+                x => x.UserId == userId &&
+                     x.SkillId == skillId);
 
         if (link == null)
         {
