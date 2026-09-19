@@ -81,9 +81,9 @@ function RecruiterLayout() {
       {/* BACKGROUND DECORATION */}
 
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-32 left-[15%] w-[420px] h-[420px] bg-blue-300/25 blur-[140px] rounded-full" />
+        <div className="absolute -top-32 left-[15%] w-105 h-105 bg-blue-300/25 blur-[140px] rounded-full" />
 
-        <div className="absolute top-[50%] -right-40 w-[400px] h-[400px] bg-cyan-200/30 blur-[140px] rounded-full" />
+        <div className="absolute top-[50%] -right-40 w-100 h-100 bg-cyan-200/30 blur-[140px] rounded-full" />
       </div>
 
       <div className="relative flex">
