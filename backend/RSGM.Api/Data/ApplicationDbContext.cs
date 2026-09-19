@@ -14,6 +14,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
     public DbSet<Skill> Skills => Set<Skill>();
 
+    public DbSet<Company> Companies => Set<Company>();
+
     public DbSet<JobSeekerProfile> JobSeekerProfiles => Set<JobSeekerProfile>();
 
     public DbSet<JobSeekerSkill> JobSeekerSkills => Set<JobSeekerSkill>();
@@ -49,6 +51,22 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
                 .IsUnique();
         });
 
+        builder.Entity<Company>(entity =>
+ {
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Name)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(x => x.NormalizedName)
+               .IsRequired()
+               .HasMaxLength(200);
+
+            entity.HasIndex(x => x.NormalizedName)
+               .IsUnique();
+    });
+
         builder.Entity<JobSeekerProfile>(entity =>
         {
             entity.HasKey(x => x.Id);
@@ -72,8 +90,12 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
         });
 
         builder.Entity<JobSeekerSkill>(entity =>
-        {
+    {
             entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.ProficiencyLevel)
+                .IsRequired()
+                .HasDefaultValue(3);
 
             entity.HasIndex(x => new { x.UserId, x.SkillId })
                 .IsUnique();
@@ -87,7 +109,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
                 .WithMany()
                 .HasForeignKey(x => x.SkillId)
                 .OnDelete(DeleteBehavior.Cascade);
-        });
+  });
 
         builder.Entity<JobSeekerCv>(entity =>
         {
@@ -115,7 +137,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
         });
 
         builder.Entity<JobPosting>(entity =>
-        {
+ {
             entity.HasKey(x => x.Id);
 
             entity.Property(x => x.Title)
@@ -132,11 +154,35 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
             entity.Property(x => x.Description)
                 .HasMaxLength(2000);
+
+            entity.Property(x => x.CompanyId)
+                .IsRequired(false);
+
+            entity.Property(x => x.CreatedByUserId)
+                .IsRequired(false);
+
+            entity.HasIndex(x => x.CompanyId);
+
+            entity.HasIndex(x => x.CreatedByUserId);
+
+            entity.HasOne(x => x.CompanyEntity)
+                .WithMany(x => x.JobPostings)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<JobPostingSkill>(entity =>
         {
             entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Weight)
+                .HasPrecision(5, 2)
+                .HasDefaultValue(1.0m);
 
             entity.HasIndex(x => new { x.JobPostingId, x.SkillId })
                 .IsUnique();
@@ -168,6 +214,19 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
                 .WithMany()
                 .HasForeignKey(x => x.JobPostingId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ApplicationUser>(entity =>
+        {
+            entity.Property(x => x.CompanyId)
+                .IsRequired(false);
+
+            entity.HasIndex(x => x.CompanyId);
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.Users)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }
