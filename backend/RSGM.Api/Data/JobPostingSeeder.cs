@@ -3,113 +3,158 @@ using RSGM.Api.Models.Entities;
 
 namespace RSGM.Api.Data;
 
-// Temporary dev-convenience seeder. Recruiter's own create/edit workflow
-// (built later) will replace the need for this — remove once that exists.
 public static class JobPostingSeeder
 {
-    public static async Task SeedAsync(IServiceProvider services)
+    public static async Task SeedAsync(
+        IServiceProvider services)
     {
         using var scope = services.CreateScope();
 
         var context = scope.ServiceProvider
             .GetRequiredService<ApplicationDbContext>();
 
-        // Idempotent: only seed if no postings exist yet.
+        // ---------------------------------------------------------
+        // 1. Load companies from the database
+        // ---------------------------------------------------------
+        var companies = await context.Companies
+            .ToDictionaryAsync(
+                x => x.NormalizedName,
+                x => x);
+
+        // ---------------------------------------------------------
+        // 2. Do not seed duplicate job postings
+        // ---------------------------------------------------------
         if (await context.JobPostings.AnyAsync())
         {
             return;
         }
 
-        var skillNames = new[]
-        {
-            "React", "TypeScript", "JavaScript", "Tailwind CSS",
-            "Node.js", "PostgreSQL", "C#", "ASP.NET Core",
-            "Figma", "Design Systems", "Docker", "GraphQL"
-        };
+        // ---------------------------------------------------------
+        // 3. Seed skills
+        // ---------------------------------------------------------
+        var skillsByName = await context.Skills
+            .Where(x => x.IsActive)
+            .ToDictionaryAsync(
+                x => x.Name,
+                x => x,
+                StringComparer.OrdinalIgnoreCase);
 
-        var skillsByName = new Dictionary<string, Skill>();
-
-        foreach (var name in skillNames)
-        {
-            var normalized = name.ToUpperInvariant();
-
-            var skill = await context.Skills
-                .FirstOrDefaultAsync(x => x.NormalizedName == normalized);
-
-            if (skill == null)
-            {
-                skill = new Skill
-                {
-                    Name = name,
-                    NormalizedName = normalized
-                };
-
-                context.Skills.Add(skill);
-            }
-
-            skillsByName[name] = skill;
-        }
-
-        await context.SaveChangesAsync();
-
+        // ---------------------------------------------------------
+        // 4. Sample job postings
+        // ---------------------------------------------------------
         var postings = new[]
         {
             new
             {
-                Title = "Senior Frontend Engineer",
+                Title = "Software Engineer",
                 Company = "RSGM Inc.",
-                Location = "Remote",
-                Description = "Build and own core product surfaces using React and TypeScript.",
-                Skills = new[] { "React", "TypeScript", "Tailwind CSS" }
+                Location = "Colombo",
+                Description =
+                    "Develop and maintain scalable software applications.",
+                Skills = new[]
+                {
+                    "C#",
+                    "ASP.NET Core",
+                    "PostgreSQL"
+                }
             },
+
             new
             {
-                Title = "Backend Engineer",
-                Company = "RSGM Inc.",
-                Location = "Remote",
-                Description = "Design and maintain our ASP.NET Core APIs and PostgreSQL data layer.",
-                Skills = new[] { "C#", "ASP.NET Core", "PostgreSQL" }
-            },
-            new
-            {
-                Title = "Product Designer",
+                Title = "Machine Learning Engineer",
                 Company = "Northwind",
-                Location = "Singapore",
-                Description = "Own design systems and cross-platform consistency across our apps.",
-                Skills = new[] { "Figma", "Design Systems" }
+                Location = "Colombo",
+                Description =
+                    "Build and deploy machine learning solutions.",
+                Skills = new[]
+                {
+                    "Python",
+                    "Machine Learning",
+                    "SQL"
+                }
             },
+
             new
             {
-                Title = "Full-Stack Developer",
+                Title = "Frontend Developer",
                 Company = "BrightPath",
-                Location = "Singapore",
-                Description = "Work across our React frontend and Node.js backend services.",
-                Skills = new[] { "React", "JavaScript", "Node.js" }
+                Location = "Remote",
+                Description =
+                    "Develop modern and responsive web applications.",
+                Skills = new[]
+                {
+                    "React",
+                    "JavaScript",
+                    "HTML"
+                }
             }
         };
 
+        // ---------------------------------------------------------
+        // 5. Create job postings
+        // ---------------------------------------------------------
         foreach (var p in postings)
         {
+            var companyName =
+                p.Company.Trim();
+
+            var normalizedCompany =
+                companyName.ToUpperInvariant();
+
+            // Find the relational Company entity
+            if (!companies.TryGetValue(
+                    normalizedCompany,
+                    out var company))
+            {
+                throw new InvalidOperationException(
+                    $"Company '{companyName}' was not found.");
+            }
+
             var posting = new JobPosting
             {
                 Title = p.Title,
-                Company = p.Company,
+
+                // Keep the existing string field
+                Company = company.Name,
+
+                // New relational Company relationship
+                CompanyId = company.Id,
+
                 Location = p.Location,
                 Description = p.Description,
                 Status = JobPostingStatus.Published
             };
 
+            // -----------------------------------------------------
+            // 6. Add required skills with skill weights
+            // -----------------------------------------------------
             foreach (var skillName in p.Skills)
             {
-                posting.RequiredSkills.Add(new JobPostingSkill
+                if (!skillsByName.TryGetValue(
+                        skillName,
+                        out var skill))
                 {
-                    Skill = skillsByName[skillName]
-                });
+                    continue;
+                }
+
+                posting.RequiredSkills.Add(
+                    new JobPostingSkill
+                    {
+                        Skill = skill,
+
+                        // Default weight for now.
+                        // Later Component C can use different
+                        // weights for different required skills.
+                        Weight = 1.0m
+                    });
             }
 
             context.JobPostings.Add(posting);
         }
 
+        // ---------------------------------------------------------
+        // 7. Save everything
+        // ---------------------------------------------------------
         await context.SaveChangesAsync();
     }
 }
