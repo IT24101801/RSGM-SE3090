@@ -1,289 +1,259 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  AlertCircle,
-  Ban,
-  CircleCheck,
-  Loader2,
-  Search,
-  Sparkles,
-} from "lucide-react";
+import { useEffect, useState } from "react";
 
 import {
   getAdminUsers,
   updateAdminUserRole,
   updateAdminUserStatus,
+  assignUserCompany,
 } from "../../services/adminUserService";
-import {
-  assignCompanyMember,
-  getAdminCompanies,
-  removeCompanyMember,
-} from "../../services/adminCompanyService";
 
-const ROLES = ["JobSeeker", "Recruiter", "HRManager", "HiringPanelist", "SystemAdmin"];
-const COMPANY_ROLES = new Set(["Recruiter", "HRManager", "HiringPanelist"]);
+import {
+  getAdminCompanies,
+} from "../../services/adminCompanyService";
 
 function AdminUsersPage() {
   const [users, setUsers] = useState([]);
   const [companies, setCompanies] = useState([]);
-  const [query, setQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState("All");
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [updatingId, setUpdatingId] = useState(null);
 
   useEffect(() => {
-    let ignore = false;
-
-    Promise.all([getAdminUsers(), getAdminCompanies()])
-      .then(([userData, companyData]) => {
-        if (!ignore) {
-          setUsers(userData);
-          setCompanies(companyData.filter((company) => company.isActive));
-        }
-      })
-      .catch((requestError) => {
-        if (!ignore) setError(requestError.message || "Unable to load users.");
-      })
-      .finally(() => {
-        if (!ignore) setIsLoading(false);
-      });
-
-    return () => { ignore = true; };
+    loadData();
   }, []);
 
-  const filteredUsers = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return users.filter((user) => {
-      const matchesQuery =
-        user.fullName.toLowerCase().includes(normalizedQuery) ||
-        user.email.toLowerCase().includes(normalizedQuery);
-      const matchesRole = roleFilter === "All" || user.role === roleFilter;
-      return matchesQuery && matchesRole;
-    });
-  }, [users, query, roleFilter]);
-
-  const replaceUser = (updatedUser) => {
-    setUsers((previous) => previous.map((user) =>
-      user.id === updatedUser.id ? updatedUser : user));
-  };
-
-  const toggleActive = async (user) => {
-    setError("");
-    setUpdatingId(user.id);
+  const loadData = async () => {
     try {
-      replaceUser(await updateAdminUserStatus(user.id, !user.isActive));
-    } catch (requestError) {
-      setError(requestError.message || "Unable to update user status.");
+      setLoading(true);
+      setError("");
+
+      const [usersData, companiesData] =
+        await Promise.all([
+          getAdminUsers(),
+          getAdminCompanies(),
+        ]);
+
+      setUsers(usersData);
+      setCompanies(companiesData);
+    } catch (err) {
+      setError(
+        err.message || "Failed to load users."
+      );
     } finally {
-      setUpdatingId(null);
+      setLoading(false);
     }
   };
 
-  const changeRole = async (user, newRole) => {
-    if (user.role === newRole) return;
-    setError("");
-    setUpdatingId(user.id);
+  const handleRoleChange = async (
+    userId,
+    role
+  ) => {
     try {
-      replaceUser(await updateAdminUserRole(user.id, newRole));
-    } catch (requestError) {
-      setError(requestError.message || "Unable to update user role.");
-    } finally {
-      setUpdatingId(null);
+      await updateAdminUserRole(userId, role);
+      await loadData();
+    } catch (err) {
+      setError(
+        err.message || "Failed to update role."
+      );
     }
   };
 
-  const changeCompany = async (user, newCompanyId) => {
-    if ((user.companyId ?? "") === newCompanyId) return;
-    setError("");
-    setUpdatingId(user.id);
+  const handleCompanyChange = async (
+    userId,
+    companyId
+  ) => {
     try {
-      if (!newCompanyId) {
-        if (user.companyId) {
-          await removeCompanyMember(user.companyId, user.id);
-        }
-        replaceUser({ ...user, companyId: null, companyName: null });
-      } else {
-        await assignCompanyMember(newCompanyId, user.id);
-        const company = companies.find((item) => item.id === newCompanyId);
-        replaceUser({
-          ...user,
-          companyId: newCompanyId,
-          companyName: company?.name ?? null,
-        });
-      }
-    } catch (requestError) {
-      setError(requestError.message || "Unable to update company assignment.");
-    } finally {
-      setUpdatingId(null);
+      await assignUserCompany(
+        userId,
+        companyId || null
+      );
+
+      await loadData();
+    } catch (err) {
+      setError(
+        err.message ||
+          "Failed to assign company."
+      );
     }
   };
+
+  const handleStatusChange = async (
+    userId,
+    isActive
+  ) => {
+    try {
+      await updateAdminUserStatus(
+        userId,
+        isActive
+      );
+
+      await loadData();
+    } catch (err) {
+      setError(
+        err.message ||
+          "Failed to update user status."
+      );
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-sm text-neutral-500">
+        Loading users...
+      </div>
+    );
+  }
 
   return (
     <div>
-      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-50 text-violet-600 text-[11px] font-semibold">
-        <Sparkles size={12} />
-        USER MANAGEMENT
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold">
+          Users
+        </h1>
+
+        <p className="text-sm text-neutral-500 mt-1">
+          Manage users, roles, status, and
+          company assignments.
+        </p>
       </div>
 
-      <h1 className="mt-4 text-3xl sm:text-4xl font-semibold tracking-tight">Users</h1>
-      <p className="mt-2 text-neutral-500">
-        Manage accounts, assign roles, and activate or deactivate users.
-      </p>
-
       {error && (
-        <div className="mt-5 flex items-start gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600 max-w-2xl">
-          <AlertCircle size={17} className="mt-0.5 shrink-0" />
-          <span>{error}</span>
+        <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
         </div>
       )}
 
-      <div className="mt-8 flex flex-col sm:flex-row gap-3">
-        <div className="relative max-w-sm w-full">
-          <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search by name or email..."
-            className="w-full h-11 rounded-xl border border-neutral-200 bg-white pl-11 pr-4 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
-          />
-        </div>
+      <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white">
+        <table className="w-full text-sm">
+          <thead className="bg-neutral-50">
+            <tr>
+              <th className="text-left px-4 py-3">
+                Name
+              </th>
 
-        <select
-          value={roleFilter}
-          onChange={(event) => setRoleFilter(event.target.value)}
-          className="h-11 rounded-xl border border-neutral-200 bg-white px-4 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
-        >
-          <option value="All">All roles</option>
-          {ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
-        </select>
-      </div>
+              <th className="text-left px-4 py-3">
+                Email
+              </th>
 
-      <div className="mt-6 overflow-hidden rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-neutral-200/70 text-left text-xs text-neutral-400 uppercase tracking-wide">
-                <th className="px-6 py-4 font-medium">User</th>
-                <th className="px-6 py-4 font-medium">Role</th>
-                <th className="px-6 py-4 font-medium">Company</th>
-                <th className="px-6 py-4 font-medium">Joined</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 font-medium text-right">Actions</th>
+              <th className="text-left px-4 py-3">
+                Role
+              </th>
+
+              <th className="text-left px-4 py-3">
+                Company
+              </th>
+
+              <th className="text-left px-4 py-3">
+                Status
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {users.map((user) => (
+              <tr
+                key={user.id}
+                className="border-t border-neutral-100"
+              >
+                <td className="px-4 py-4">
+                  {user.fullName}
+                </td>
+
+                <td className="px-4 py-4">
+                  {user.email}
+                </td>
+
+                <td className="px-4 py-4">
+                  <select
+                    value={user.role ?? ""}
+                    onChange={(e) =>
+                      handleRoleChange(
+                        user.id,
+                        e.target.value
+                      )
+                    }
+                    className="rounded-lg border border-neutral-200 px-3 py-2"
+                  >
+                    <option value="JobSeeker">
+                      Job Seeker
+                    </option>
+
+                    <option value="Recruiter">
+                      Recruiter
+                    </option>
+
+                    <option value="HRManager">
+                      HR Manager
+                    </option>
+
+                    <option value="HiringPanelist">
+                      Hiring Panelist
+                    </option>
+
+                    <option value="SystemAdmin">
+                      System Admin
+                    </option>
+                  </select>
+                </td>
+
+                <td className="px-4 py-4">
+                  <select
+                    value={
+                      user.companyId ?? ""
+                    }
+                    onChange={(e) =>
+                      handleCompanyChange(
+                        user.id,
+                        e.target.value
+                      )
+                    }
+                    disabled={
+                      user.role === "JobSeeker"
+                    }
+                    className="rounded-lg border border-neutral-200 px-3 py-2 disabled:bg-neutral-100"
+                  >
+                    <option value="">
+                      No company
+                    </option>
+
+                    {companies.map(
+                      (company) => (
+                        <option
+                          key={company.id}
+                          value={company.id}
+                        >
+                          {company.name}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </td>
+
+                <td className="px-4 py-4">
+                  <button
+                    onClick={() =>
+                      handleStatusChange(
+                        user.id,
+                        !user.isActive
+                      )
+                    }
+                    className={`rounded-lg px-3 py-2 text-xs font-medium ${
+                      user.isActive
+                        ? "bg-green-50 text-green-700"
+                        : "bg-red-50 text-red-700"
+                    }`}
+                  >
+                    {user.isActive
+                      ? "Active"
+                      : "Inactive"}
+                  </button>
+                </td>
               </tr>
-            </thead>
-
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center">
-                    <span className="inline-flex items-center gap-2 text-neutral-400">
-                      <Loader2 size={17} className="animate-spin" />
-                      Loading users...
-                    </span>
-                  </td>
-                </tr>
-              ) : filteredUsers.map((user) => {
-                const isUpdating = updatingId === user.id;
-                return (
-                  <tr key={user.id} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50/70 transition">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 text-xs font-semibold shrink-0">
-                          {getInitials(user.fullName)}
-                        </div>
-                        <div>
-                          <p className="font-medium text-neutral-900">{user.fullName}</p>
-                          <p className="text-xs text-neutral-400">{user.email}</p>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="px-6 py-4">
-                      <select
-                        value={user.role}
-                        onChange={(event) => changeRole(user, event.target.value)}
-                        disabled={isUpdating}
-                        className="h-9 rounded-lg border border-neutral-200 bg-white px-2.5 text-xs font-medium outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition disabled:opacity-50"
-                      >
-                        {user.role === "Unassigned" && <option value="Unassigned" disabled>Unassigned</option>}
-                        {ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
-                      </select>
-                    </td>
-
-                    <td className="px-6 py-4">
-                      {COMPANY_ROLES.has(user.role) ? (
-                        <select
-                          value={user.companyId ?? ""}
-                          onChange={(event) => changeCompany(user, event.target.value)}
-                          disabled={isUpdating}
-                          className="h-9 min-w-36 rounded-lg border border-neutral-200 bg-white px-2.5 text-xs outline-none focus:border-violet-400 disabled:opacity-50"
-                        >
-                          <option value="">Not assigned</option>
-                          {companies.map((company) => (
-                            <option key={company.id} value={company.id}>{company.name}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="text-xs text-neutral-400">Not required</span>
-                      )}
-                    </td>
-
-                    <td className="px-6 py-4 text-neutral-500">
-                      {new Date(user.createdAt).toLocaleDateString()}
-                    </td>
-
-                    <td className="px-6 py-4">
-                      {user.isActive ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-medium">
-                          <CircleCheck size={13} /> Active
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-500 text-xs font-medium">
-                          <Ban size={13} /> Deactivated
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end">
-                        <button
-                          type="button"
-                          onClick={() => toggleActive(user)}
-                          disabled={isUpdating}
-                          className={`h-9 px-3.5 rounded-lg border text-xs font-semibold transition flex items-center gap-1.5 disabled:opacity-50 ${
-                            user.isActive
-                              ? "border-red-200 text-red-600 hover:bg-red-50"
-                              : "border-emerald-200 text-emerald-600 hover:bg-emerald-50"
-                          }`}
-                        >
-                          {isUpdating ? <Loader2 size={13} className="animate-spin" />
-                            : user.isActive ? <Ban size={13} /> : <CircleCheck size={13} />}
-                          {user.isActive ? "Deactivate" : "Activate"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {!isLoading && filteredUsers.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center text-sm text-neutral-400">
-                    No users match your filters.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
-}
-
-function getInitials(fullName) {
-  return fullName.split(" ").filter(Boolean).map((part) => part[0])
-    .join("").slice(0, 2).toUpperCase();
 }
 
 export default AdminUsersPage;
