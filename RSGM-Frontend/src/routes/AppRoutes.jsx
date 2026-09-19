@@ -40,6 +40,9 @@ import PanelistLayout from "../layouts/PanelistLayout";
 import PanelistDashboardPage from "../pages/panelist/PanelistDashboardPage";
 import MyInterviewsPage from "../pages/panelist/MyInterviewsPage";
 
+import RequisitionsPage from "../pages/recruiter/RequisitionsPage";
+import RequisitionApprovalsPage from "../pages/hr/RequisitionApprovalsPage";
+
 import ProtectedRoute from "./ProtectedRoute";
 
 function AppRoutes() {
@@ -129,6 +132,24 @@ function AppRoutes() {
         <Route index element={<PanelistDashboardPage />} />
         <Route path="interviews" element={<MyInterviewsPage />} />
       </Route>
+
+      <Route
+        path="/recruiter/requisitions"
+        element={
+          <ProtectedRoute allowedRoles={["Recruiter"]}>
+            <RequisitionsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/hr/requisitions"
+        element={
+          <ProtectedRoute allowedRoles={["HRManager"]}>
+            <RequisitionApprovalsPage />
+          </ProtectedRoute>
+        }
+      />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

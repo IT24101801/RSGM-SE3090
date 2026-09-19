@@ -1,173 +1,300 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  AlertCircle, CheckCircle2, ClipboardList, Loader2, Sparkles, X, XCircle,
-} from "lucide-react";
+  approveRequisition,
+  getHrRequisitions,
+  rejectRequisition,
+} from "../../services/hrRequisitionService";
 
-// TODO: replace with GET /api/hr/requisitions?status=pending, POST /api/hr/requisitions/{id}/decision
-const INITIAL_REQUISITIONS = [
-  { id: "r1", title: "Senior Frontend Engineer", department: "Engineering", headcount: 2, requestedBy: "Marcus Tan", submittedAt: "2026-09-10", justification: "Backlog growth on core product surfaces requires two more senior engineers this quarter.", status: "Pending" },
-  { id: "r2", title: "Product Designer", department: "Design", headcount: 1, requestedBy: "Marcus Tan", submittedAt: "2026-09-08", justification: "Design team is stretched across three concurrent launches.", status: "Pending" },
-  { id: "r3", title: "Data Analyst", department: "Analytics", headcount: 1, requestedBy: "Marcus Tan", submittedAt: "2026-09-05", justification: "New analytics function to support pricing decisions.", status: "Approved" },
-];
+export default function RequisitionApprovalsPage() {
+  const [items, setItems] =
+    useState([]);
 
-const STATUS_STYLES = {
-  Pending: "bg-amber-50 text-amber-600",
-  Approved: "bg-emerald-50 text-emerald-600",
-  Rejected: "bg-red-50 text-red-600",
-};
+  const [loading, setLoading] =
+    useState(true);
 
-function RequisitionApprovalsPage() {
-  const [requisitions, setRequisitions] = useState(INITIAL_REQUISITIONS);
-  const [rejecting, setRejecting] = useState(null);
+  const [error, setError] =
+    useState("");
 
-  const approve = (id) => {
-    // TODO: POST /api/hr/requisitions/{id}/decision { decision: "Approved" }
-    setRequisitions((prev) => prev.map((r) => (r.id === id ? { ...r, status: "Approved" } : r)));
-  };
+  const [rejectingId, setRejectingId] =
+    useState(null);
 
-  const reject = (id, reason) => {
-    // TODO: POST /api/hr/requisitions/{id}/decision { decision: "Rejected", reason }
-    setRequisitions((prev) => prev.map((r) => (r.id === id ? { ...r, status: "Rejected", rejectionReason: reason } : r)));
-    setRejecting(null);
-  };
+  const [feedback, setFeedback] =
+    useState("");
+
+  async function load() {
+    setLoading(true);
+    setError("");
+
+    try {
+      setItems(
+        await getHrRequisitions()
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function handleApprove(id) {
+    if (
+      !window.confirm(
+        "Approve this requisition?"
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await approveRequisition(id);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleReject(id) {
+    if (
+      feedback.trim().length < 5
+    ) {
+      setError(
+        "Please provide a reason for rejection."
+      );
+
+      return;
+    }
+
+    try {
+      await rejectRequisition(
+        id,
+        feedback
+      );
+
+      setFeedback("");
+      setRejectingId(null);
+
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   return (
-    <div>
-      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-600 text-[11px] font-semibold">
-        <Sparkles size={12} />
-        REQUISITION APPROVALS
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">
+          Requisition Approvals
+        </h1>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Review job requisitions
+          submitted by recruiters in
+          your company.
+        </p>
       </div>
 
-      <h1 className="mt-4 text-3xl sm:text-4xl font-semibold tracking-tight">Requisitions</h1>
-      <p className="mt-2 text-neutral-500">
-        Approve or reject hiring requests submitted by recruiters.
-      </p>
+      {error && (
+        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
-      <div className="mt-8 space-y-4">
-        {requisitions.map((r) => (
-          <div
-            key={r.id}
-            className="rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30 p-6"
-          >
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-              <div className="flex items-start gap-4">
-                <div className="w-11 h-11 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0">
-                  <ClipboardList size={20} className="text-emerald-600" />
-                </div>
+      {loading ? (
+        <p>Loading...</p>
+      ) : (
+        <div className="space-y-4">
+          {items.map((item) => {
+            const isSubmitted =
+              item.status ===
+                "Submitted" ||
+              item.status === 1;
 
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-neutral-900">{r.title}</p>
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_STYLES[r.status]}`}>
-                      {r.status}
-                    </span>
+            return (
+              <div
+                key={item.id}
+                className="rounded-xl border bg-white p-6 shadow-sm"
+              >
+                <div className="flex flex-wrap justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold">
+                      {
+                        item.positionTitle
+                      }
+                    </h2>
+
+                    <p className="text-sm text-slate-500">
+                      Requested by{" "}
+                      {
+                        item.recruiterName
+                      }
+                    </p>
                   </div>
-                  <p className="mt-1 text-sm text-neutral-500">
-                    {r.department} · {r.headcount} headcount · requested by {r.requestedBy} on {r.submittedAt}
+
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-sm">
+                    {item.status}
+                  </span>
+                </div>
+
+                <div className="mt-5 grid gap-3 text-sm md:grid-cols-2 lg:grid-cols-3">
+                  <p>
+                    Department:{" "}
+                    {item.department}
                   </p>
-                  <p className="mt-2.5 text-sm text-neutral-600 max-w-xl">{r.justification}</p>
-                  {r.status === "Rejected" && r.rejectionReason && (
-                    <p className="mt-2 text-sm text-red-600">Reason: {r.rejectionReason}</p>
-                  )}
+
+                  <p>
+                    Headcount:{" "}
+                    {item.headcount}
+                  </p>
+
+                  <p>
+                    Location:{" "}
+                    {item.location}
+                  </p>
+
+                  <p>
+                    Experience:{" "}
+                    {
+                      item.minExperienceYears
+                    }{" "}
+                    years
+                  </p>
+
+                  <p>
+                    Salary:{" "}
+                    {item.minSalary ??
+                      "-"}{" "}
+                    -{" "}
+                    {item.maxSalary ??
+                      "-"}{" "}
+                    {item.currency}
+                  </p>
+
+                  <p>
+                    Company:{" "}
+                    {item.companyName}
+                  </p>
                 </div>
+
+                {item.description && (
+                  <div className="mt-4">
+                    <strong>
+                      Description
+                    </strong>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {
+                        item.description
+                      }
+                    </p>
+                  </div>
+                )}
+
+                {item.justification && (
+                  <div className="mt-4">
+                    <strong>
+                      Justification
+                    </strong>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {
+                        item.justification
+                      }
+                    </p>
+                  </div>
+                )}
+
+                {isSubmitted && (
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <button
+                      onClick={() =>
+                        handleApprove(
+                          item.id
+                        )
+                      }
+                      className="rounded-lg bg-green-600 px-4 py-2 text-white"
+                    >
+                      Approve
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        setRejectingId(
+                          item.id
+                        )
+                      }
+                      className="rounded-lg bg-red-600 px-4 py-2 text-white"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+
+                {rejectingId ===
+                  item.id && (
+                  <div className="mt-5 rounded-lg border p-4">
+                    <label className="font-medium">
+                      Reason for
+                      rejection
+                    </label>
+
+                    <textarea
+                      value={feedback}
+                      onChange={(e) =>
+                        setFeedback(
+                          e.target.value
+                        )
+                      }
+                      className="mt-2 min-h-28 w-full rounded-lg border p-3"
+                      placeholder="Explain why this requisition was rejected..."
+                    />
+
+                    <div className="mt-3 flex gap-3">
+                      <button
+                        onClick={() =>
+                          handleReject(
+                            item.id
+                          )
+                        }
+                        className="rounded-lg bg-red-600 px-4 py-2 text-white"
+                      >
+                        Confirm Rejection
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setRejectingId(
+                            null
+                          );
+                          setFeedback("");
+                        }}
+                        className="rounded-lg border px-4 py-2"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {item.hrFeedback && (
+                  <div className="mt-5 rounded-lg bg-red-50 p-4">
+                    <strong className="text-red-800">
+                      HR Feedback
+                    </strong>
+
+                    <p className="mt-1 text-sm text-red-700">
+                      {
+                        item.hrFeedback
+                      }
+                    </p>
+                  </div>
+                )}
               </div>
-
-              {r.status === "Pending" && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => approve(r.id)}
-                    className="h-10 px-4 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center gap-2 hover:bg-neutral-800 active:scale-[0.99] transition"
-                  >
-                    <CheckCircle2 size={14} />
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => setRejecting(r.id)}
-                    className="h-10 px-4 rounded-xl border border-red-200 text-red-600 text-sm font-semibold flex items-center gap-2 hover:bg-red-50 transition"
-                  >
-                    <XCircle size={14} />
-                    Reject
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {rejecting && (
-        <RejectModal onClose={() => setRejecting(null)} onSubmit={(reason) => reject(rejecting, reason)} />
+            );
+          })}
+        </div>
       )}
     </div>
   );
 }
-
-function RejectModal({ onClose, onSubmit }) {
-  const [reason, setReason] = useState("");
-  const [error, setError] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!reason.trim()) {
-      setError("Please provide a reason for rejection.");
-      return;
-    }
-    setIsSaving(true);
-    setTimeout(() => onSubmit(reason.trim()), 400);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-
-      <div className="relative w-full max-w-md rounded-3xl border border-white/70 bg-white shadow-2xl p-6 sm:p-8">
-        <button onClick={onClose} className="absolute right-5 top-5 text-neutral-400 hover:text-neutral-700 transition">
-          <X size={18} />
-        </button>
-
-        <h2 className="text-2xl font-semibold tracking-tight">Reject requisition</h2>
-        <p className="mt-1.5 text-sm text-neutral-500">
-          Let the recruiter know why this request wasn't approved.
-        </p>
-
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={4}
-            placeholder="e.g. Budget not approved for this quarter"
-            className="w-full rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 py-3 text-sm outline-none focus:bg-white focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 transition resize-none"
-          />
-
-          {error && (
-            <div className="flex items-start gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
-              <AlertCircle size={17} className="mt-0.5 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 h-12 rounded-xl border border-neutral-200 text-sm font-semibold text-neutral-600 hover:bg-neutral-100 transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="flex-1 h-12 rounded-xl bg-red-600 text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-red-700 active:scale-[0.99] transition disabled:opacity-60"
-            >
-              {isSaving && <Loader2 size={16} className="animate-spin" />}
-              Confirm rejection
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-export default RequisitionApprovalsPage;

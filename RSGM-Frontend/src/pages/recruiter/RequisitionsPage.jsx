@@ -1,214 +1,578 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  AlertCircle,
-  Loader2,
-  Plus,
-  Sparkles,
-  X,
-} from "lucide-react";
+  createRequisition,
+  getMyRequisitions,
+  submitRequisition,
+  updateRequisition,
+} from "../../services/recruiterRequisitionService";
 
-// TODO: replace with GET/POST /api/recruiter/requisitions
-const INITIAL_REQUISITIONS = [
-  { id: "r1", title: "Senior Frontend Engineer", department: "Engineering", headcount: 2, status: "Open", createdAt: "2026-08-28" },
-  { id: "r2", title: "Product Designer", department: "Design", headcount: 1, status: "Open", createdAt: "2026-09-01" },
-  { id: "r3", title: "Data Analyst", department: "Analytics", headcount: 1, status: "Pending Approval", createdAt: "2026-09-05" },
-  { id: "r4", title: "Backend Engineer", department: "Engineering", headcount: 3, status: "Closed", createdAt: "2026-07-14" },
-];
-
-const STATUS_STYLES = {
-  Open: "bg-emerald-50 text-emerald-600",
-  "Pending Approval": "bg-amber-50 text-amber-600",
-  Closed: "bg-neutral-100 text-neutral-500",
+const initialForm = {
+  positionTitle: "",
+  department: "",
+  headcount: 1,
+  employmentType: 0,
+  workMode: 0,
+  location: "",
+  experienceLevel: 0,
+  minExperienceYears: 0,
+  minSalary: "",
+  maxSalary: "",
+  currency: "LKR",
+  description: "",
+  responsibilities: "",
+  requirements: "",
+  justification: "",
 };
 
-function RequisitionsPage() {
-  const [requisitions, setRequisitions] = useState(INITIAL_REQUISITIONS);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+export default function RequisitionsPage() {
+  const [items, setItems] =
+    useState([]);
 
-  const handleCreate = (newReq) => {
-    setRequisitions((prev) => [
-      { ...newReq, id: crypto.randomUUID(), status: "Pending Approval", createdAt: new Date().toISOString().slice(0, 10) },
-      ...prev,
-    ]);
-    setIsModalOpen(false);
-  };
+  const [form, setForm] =
+    useState(initialForm);
 
-  return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 text-[11px] font-semibold">
-            <Sparkles size={12} />
-            HIRING REQUISITIONS
-          </div>
-          <h1 className="mt-4 text-3xl sm:text-4xl font-semibold tracking-tight">Requisitions</h1>
-          <p className="mt-2 text-neutral-500">
-            Raise a new hiring request and track approval status.
-          </p>
-        </div>
+  const [editingId, setEditingId] =
+    useState(null);
 
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="h-12 px-5 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-neutral-800 active:scale-[0.99] transition shrink-0"
-        >
-          <Plus size={16} />
-          New requisition
-        </button>
-      </div>
+  const [loading, setLoading] =
+    useState(true);
 
-      <div className="mt-8 overflow-hidden rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-neutral-200/70 text-left text-xs text-neutral-400 uppercase tracking-wide">
-                <th className="px-6 py-4 font-medium">Title</th>
-                <th className="px-6 py-4 font-medium">Department</th>
-                <th className="px-6 py-4 font-medium">Headcount</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 font-medium">Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {requisitions.map((r) => (
-                <tr key={r.id} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50/70 transition">
-                  <td className="px-6 py-4 font-medium text-neutral-900">{r.title}</td>
-                  <td className="px-6 py-4 text-neutral-500">{r.department}</td>
-                  <td className="px-6 py-4 text-neutral-500">{r.headcount}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_STYLES[r.status]}`}>
-                      {r.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-neutral-500">{r.createdAt}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+  const [saving, setSaving] =
+    useState(false);
 
-      {isModalOpen && (
-        <RequisitionModal onClose={() => setIsModalOpen(false)} onSubmit={handleCreate} />
-      )}
-    </div>
-  );
-}
+  const [error, setError] =
+    useState("");
 
-function RequisitionModal({ onClose, onSubmit }) {
-  const [title, setTitle] = useState("");
-  const [department, setDepartment] = useState("");
-  const [headcount, setHeadcount] = useState(1);
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  async function load() {
+    setLoading(true);
     setError("");
 
-    if (!title.trim() || !department.trim()) {
-      setError("Please fill in the title and department.");
+    try {
+      setItems(
+        await getMyRequisitions()
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  function updateField(
+    name,
+    value
+  ) {
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+  }
+
+  function startEdit(item) {
+    setEditingId(item.id);
+
+    setForm({
+      positionTitle:
+        item.positionTitle,
+      department:
+        item.department,
+      headcount:
+        item.headcount,
+      employmentType:
+        item.employmentType,
+      workMode:
+        item.workMode,
+      location:
+        item.location,
+      experienceLevel:
+        item.experienceLevel,
+      minExperienceYears:
+        item.minExperienceYears ?? 0,
+      minSalary:
+        item.minSalary ?? "",
+      maxSalary:
+        item.maxSalary ?? "",
+      currency:
+        item.currency || "LKR",
+      description:
+        item.description || "",
+      responsibilities:
+        item.responsibilities || "",
+      requirements:
+        item.requirements || "",
+      justification:
+        item.justification || "",
+    });
+  }
+
+  async function handleSave(event) {
+    event.preventDefault();
+
+    setSaving(true);
+    setError("");
+
+    try {
+      const payload = {
+        ...form,
+
+        headcount:
+          Number(form.headcount),
+
+        minExperienceYears:
+          form.minExperienceYears === ""
+            ? null
+            : Number(
+                form.minExperienceYears
+              ),
+
+        minSalary:
+          form.minSalary === ""
+            ? null
+            : Number(form.minSalary),
+
+        maxSalary:
+          form.maxSalary === ""
+            ? null
+            : Number(form.maxSalary),
+
+        employmentType:
+          Number(
+            form.employmentType
+          ),
+
+        workMode:
+          Number(form.workMode),
+
+        experienceLevel:
+          Number(
+            form.experienceLevel
+          ),
+      };
+
+      if (editingId) {
+        await updateRequisition(
+          editingId,
+          payload
+        );
+      } else {
+        await createRequisition(
+          payload
+        );
+      }
+
+      setEditingId(null);
+      setForm(initialForm);
+
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSubmit(id) {
+    if (
+      !window.confirm(
+        "Submit this requisition to HR?"
+      )
+    ) {
       return;
     }
 
-    setIsSaving(true);
-    // TODO: POST /api/recruiter/requisitions
-    setTimeout(() => {
-      onSubmit({ title: title.trim(), department: department.trim(), headcount, notes });
-      setIsSaving(false);
-    }, 500);
-  };
+    try {
+      await submitRequisition(id);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">
+          Job Requisitions
+        </h1>
 
-      <div className="relative w-full max-w-md rounded-3xl border border-white/70 bg-white shadow-2xl p-6 sm:p-8">
-        <button onClick={onClose} className="absolute right-5 top-5 text-neutral-400 hover:text-neutral-700 transition">
-          <X size={18} />
-        </button>
-
-        <h2 className="text-2xl font-semibold tracking-tight">New requisition</h2>
-        <p className="mt-1.5 text-sm text-neutral-500">
-          Submit a hiring request for approval.
+        <p className="mt-1 text-sm text-slate-500">
+          Create job requests and
+          submit them to HR for
+          approval.
         </p>
+      </div>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <Field label="Job title">
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Senior Frontend Engineer"
-              className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition"
-            />
-          </Field>
+      {error && (
+        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
-          <Field label="Department">
-            <input
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-              placeholder="e.g. Engineering"
-              className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition"
-            />
-          </Field>
+      <form
+        onSubmit={handleSave}
+        className="rounded-xl border bg-white p-6 shadow-sm"
+      >
+        <h2 className="mb-5 text-lg font-semibold">
+          {editingId
+            ? "Edit Requisition"
+            : "Create Requisition"}
+        </h2>
 
-          <Field label="Headcount">
-            <input
-              type="number"
-              min={1}
-              value={headcount}
-              onChange={(e) => setHeadcount(Number(e.target.value))}
-              className="w-full h-12 rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 text-sm outline-none focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition"
-            />
-          </Field>
+        <div className="grid gap-4 md:grid-cols-2">
+          <input
+            required
+            placeholder="Position title"
+            className="rounded-lg border p-3"
+            value={form.positionTitle}
+            onChange={(e) =>
+              updateField(
+                "positionTitle",
+                e.target.value
+              )
+            }
+          />
 
-          <Field label="Notes (optional)">
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="Justification, budget notes, etc."
-              className="w-full rounded-xl border border-neutral-200 bg-neutral-50/70 px-4 py-3 text-sm outline-none focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition resize-none"
-            />
-          </Field>
+          <input
+            required
+            placeholder="Department"
+            className="rounded-lg border p-3"
+            value={form.department}
+            onChange={(e) =>
+              updateField(
+                "department",
+                e.target.value
+              )
+            }
+          />
 
-          {error && (
-            <div className="flex items-start gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
-              <AlertCircle size={17} className="mt-0.5 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+          <input
+            required
+            type="number"
+            min="1"
+            placeholder="Headcount"
+            className="rounded-lg border p-3"
+            value={form.headcount}
+            onChange={(e) =>
+              updateField(
+                "headcount",
+                e.target.value
+              )
+            }
+          />
 
-          <div className="flex items-center gap-3 pt-2">
+          <input
+            required
+            placeholder="Location"
+            className="rounded-lg border p-3"
+            value={form.location}
+            onChange={(e) =>
+              updateField(
+                "location",
+                e.target.value
+              )
+            }
+          />
+
+          <select
+            className="rounded-lg border p-3"
+            value={form.employmentType}
+            onChange={(e) =>
+              updateField(
+                "employmentType",
+                e.target.value
+              )
+            }
+          >
+            <option value={0}>
+              Full Time
+            </option>
+            <option value={1}>
+              Part Time
+            </option>
+            <option value={2}>
+              Contract
+            </option>
+            <option value={3}>
+              Internship
+            </option>
+          </select>
+
+          <select
+            className="rounded-lg border p-3"
+            value={form.workMode}
+            onChange={(e) =>
+              updateField(
+                "workMode",
+                e.target.value
+              )
+            }
+          >
+            <option value={0}>
+              On Site
+            </option>
+            <option value={1}>
+              Remote
+            </option>
+            <option value={2}>
+              Hybrid
+            </option>
+          </select>
+
+          <input
+            type="number"
+            min="0"
+            placeholder="Minimum experience"
+            className="rounded-lg border p-3"
+            value={
+              form.minExperienceYears
+            }
+            onChange={(e) =>
+              updateField(
+                "minExperienceYears",
+                e.target.value
+              )
+            }
+          />
+
+          <select
+            className="rounded-lg border p-3"
+            value={
+              form.experienceLevel
+            }
+            onChange={(e) =>
+              updateField(
+                "experienceLevel",
+                e.target.value
+              )
+            }
+          >
+            <option value={0}>
+              Entry
+            </option>
+            <option value={1}>
+              Junior
+            </option>
+            <option value={2}>
+              Mid
+            </option>
+            <option value={3}>
+              Senior
+            </option>
+            <option value={4}>
+              Lead
+            </option>
+          </select>
+
+          <input
+            type="number"
+            min="0"
+            placeholder="Minimum salary"
+            className="rounded-lg border p-3"
+            value={form.minSalary}
+            onChange={(e) =>
+              updateField(
+                "minSalary",
+                e.target.value
+              )
+            }
+          />
+
+          <input
+            type="number"
+            min="0"
+            placeholder="Maximum salary"
+            className="rounded-lg border p-3"
+            value={form.maxSalary}
+            onChange={(e) =>
+              updateField(
+                "maxSalary",
+                e.target.value
+              )
+            }
+          />
+        </div>
+
+        <textarea
+          placeholder="Description"
+          className="mt-4 w-full rounded-lg border p-3"
+          value={form.description}
+          onChange={(e) =>
+            updateField(
+              "description",
+              e.target.value
+            )
+          }
+        />
+
+        <textarea
+          placeholder="Responsibilities"
+          className="mt-4 w-full rounded-lg border p-3"
+          value={
+            form.responsibilities
+          }
+          onChange={(e) =>
+            updateField(
+              "responsibilities",
+              e.target.value
+            )
+          }
+        />
+
+        <textarea
+          placeholder="Requirements"
+          className="mt-4 w-full rounded-lg border p-3"
+          value={form.requirements}
+          onChange={(e) =>
+            updateField(
+              "requirements",
+              e.target.value
+            )
+          }
+        />
+
+        <textarea
+          placeholder="Why is this position needed?"
+          className="mt-4 w-full rounded-lg border p-3"
+          value={form.justification}
+          onChange={(e) =>
+            updateField(
+              "justification",
+              e.target.value
+            )
+          }
+        />
+
+        <div className="mt-5 flex gap-3">
+          <button
+            disabled={saving}
+            className="rounded-lg bg-slate-900 px-5 py-2.5 text-white"
+          >
+            {saving
+              ? "Saving..."
+              : editingId
+                ? "Update"
+                : "Save Draft"}
+          </button>
+
+          {editingId && (
             <button
               type="button"
-              onClick={onClose}
-              className="flex-1 h-12 rounded-xl border border-neutral-200 text-sm font-semibold text-neutral-600 hover:bg-neutral-100 transition"
+              onClick={() => {
+                setEditingId(null);
+                setForm(initialForm);
+              }}
+              className="rounded-lg border px-5 py-2.5"
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="flex-1 h-12 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-neutral-800 active:scale-[0.99] transition disabled:opacity-60"
+          )}
+        </div>
+      </form>
+
+      <div className="space-y-4">
+        {loading ? (
+          <p>Loading...</p>
+        ) : (
+          items.map((item) => (
+            <div
+              key={item.id}
+              className="rounded-xl border bg-white p-5 shadow-sm"
             >
-              {isSaving && <Loader2 size={16} className="animate-spin" />}
-              Submit for approval
-            </button>
-          </div>
-        </form>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold">
+                    {
+                      item.positionTitle
+                    }
+                  </h3>
+
+                  <p className="text-sm text-slate-500">
+                    {item.department} •{" "}
+                    {item.location}
+                  </p>
+                </div>
+
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-sm">
+                  {item.status}
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-2 text-sm md:grid-cols-3">
+                <p>
+                  Headcount:{" "}
+                  {item.headcount}
+                </p>
+
+                <p>
+                  Salary:{" "}
+                  {item.minSalary ??
+                    "-"}{" "}
+                  -{" "}
+                  {item.maxSalary ??
+                    "-"}{" "}
+                  {item.currency}
+                </p>
+
+                <p>
+                  Company:{" "}
+                  {item.companyName}
+                </p>
+              </div>
+
+              {item.hrFeedback && (
+                <div className="mt-4 rounded-lg bg-red-50 p-4">
+                  <p className="font-medium text-red-800">
+                    HR Feedback
+                  </p>
+
+                  <p className="mt-1 text-sm text-red-700">
+                    {
+                      item.hrFeedback
+                    }
+                  </p>
+                </div>
+              )}
+
+              {(item.status ===
+                "Draft" ||
+                item.status ===
+                  "Rejected" ||
+                item.status === 0 ||
+                item.status === 2) && (
+                <div className="mt-4 flex gap-3">
+                  <button
+                    onClick={() =>
+                      startEdit(item)
+                    }
+                    className="rounded-lg border px-4 py-2"
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      handleSubmit(
+                        item.id
+                      )
+                    }
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-white"
+                  >
+                    {item.status ===
+                      "Rejected" ||
+                    item.status === 2
+                      ? "Resubmit"
+                      : "Submit to HR"}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
 }
-
-function Field({ label, children }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-neutral-700 mb-2">{label}</label>
-      {children}
-    </div>
-  );
-}
-
-export default RequisitionsPage;
