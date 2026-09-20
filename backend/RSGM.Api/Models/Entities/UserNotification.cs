@@ -4,7 +4,11 @@ public enum NotificationKind
 {
     InterviewScheduled,
     InterviewRescheduled,
-    InterviewCancelled
+    InterviewCancelled,
+    ShortlistSubmitted,
+    CandidateConfirmed,
+    RescheduleRequested,
+    CandidateRecommended
 }
 
 public class UserNotification

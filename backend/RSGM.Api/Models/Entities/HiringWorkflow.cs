@@ -1,6 +1,6 @@
 namespace RSGM.Api.Models.Entities;
 
-public enum InterviewStatus { Scheduled, Cancelled }
+public enum InterviewStatus { Scheduled, Cancelled, Proposed, RescheduleRequested }
 public enum OfferStatus { Draft, Submitted, Approved, Rejected, Withdrawn }
 
 public class Interview
@@ -9,6 +9,7 @@ public class Interview
     public Guid ApplicationId { get; set; }
     public Guid RecruiterId { get; set; }
     public Guid PanelistId { get; set; }
+    public Guid? HrManagerId { get; set; }
     public DateTime ScheduledAt { get; set; }
     public string Type { get; set; } = string.Empty;
     public string? LocationOrLink { get; set; }
@@ -17,6 +18,7 @@ public class Interview
     public Application Application { get; set; } = null!;
     public ApplicationUser Recruiter { get; set; } = null!;
     public ApplicationUser Panelist { get; set; } = null!;
+    public ApplicationUser? HrManager { get; set; }
     public InterviewFeedback? Feedback { get; set; }
 }
 
