@@ -47,6 +47,43 @@ public class HiringWorkflowController : ControllerBase
             time + TimeSpan.FromMinutes(InterviewDurationMinutes) <= TimeSpan.FromHours(17);
     }
 
+    private string InterviewTime(DateTime scheduledAt) =>
+        $"{TimeZoneInfo.ConvertTimeFromUtc(scheduledAt, _officeTimeZone):ddd, dd MMM yyyy 'at' hh:mm tt} ({_officeTimeZone.Id})";
+
+    private void QueueInterviewNotifications(Interview interview, Guid candidateId,
+        string candidateName, string jobTitle, string panelistName, NotificationKind kind,
+        DateTime? previousTime = null)
+    {
+        var when = InterviewTime(interview.ScheduledAt);
+        var before = previousTime.HasValue ? InterviewTime(previousTime.Value) : null;
+        var place = string.IsNullOrWhiteSpace(interview.LocationOrLink)
+            ? "" : $" Location or meeting link: {interview.LocationOrLink}.";
+
+        var (title, candidateMessage, panelistMessage) = kind switch
+        {
+            NotificationKind.InterviewScheduled => (
+                "Interview scheduled",
+                $"Your interview for {jobTitle} is scheduled for {when}. Panelist: {panelistName}.{place}",
+                $"You are assigned to interview {candidateName} for {jobTitle} on {when}.{place}"),
+            NotificationKind.InterviewRescheduled => (
+                "Interview rescheduled",
+                $"Your interview for {jobTitle} moved from {before} to {when}.{place}",
+                $"Your interview with {candidateName} for {jobTitle} moved from {before} to {when}.{place}"),
+            _ => (
+                "Interview cancelled",
+                $"Your interview for {jobTitle}, scheduled for {when}, has been cancelled.",
+                $"Your interview with {candidateName} for {jobTitle}, scheduled for {when}, has been cancelled.")
+        };
+
+        _db.UserNotifications.AddRange(
+            new UserNotification { RecipientId = candidateId, InterviewId = interview.Id,
+                Kind = kind, Title = title, Message = candidateMessage,
+                Link = "/jobs/applications" },
+            new UserNotification { RecipientId = interview.PanelistId, InterviewId = interview.Id,
+                Kind = kind, Title = title, Message = panelistMessage,
+                Link = "/panelist/interviews" });
+    }
+
     private Guid UserId => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
         ? id : Guid.Empty;
 
@@ -161,7 +198,7 @@ public class HiringWorkflowController : ControllerBase
         if (!IsOfficeTime(request.ScheduledAt))
             return BadRequest(new { message = $"One-hour interviews must start from 08:00 to 16:00 ({_officeTimeZone.Id})." });
 
-        var application = await MyApplications.Include(a => a.JobPosting)
+        var application = await MyApplications.Include(a => a.JobPosting).Include(a => a.User)
             .FirstOrDefaultAsync(a => a.Id == request.ApplicationId);
         if (application == null) return NotFound();
         if (application.Status != ApplicationStatus.Shortlisted)
@@ -178,8 +215,10 @@ public class HiringWorkflowController : ControllerBase
 
         var scheduledAt = request.ScheduledAt.UtcDateTime;
         if (await _db.Interviews.AnyAsync(i => i.PanelistId == panelist.Id &&
-            i.Status == InterviewStatus.Scheduled && i.ScheduledAt == scheduledAt))
-            return Conflict(new { message = "This panelist already has an interview at that time." });
+            i.Status == InterviewStatus.Scheduled &&
+            i.ScheduledAt < scheduledAt.AddMinutes(InterviewDurationMinutes) &&
+            i.ScheduledAt > scheduledAt.AddMinutes(-InterviewDurationMinutes)))
+            return Conflict(new { message = "This panelist already has an overlapping interview." });
 
         var interview = new Interview { ApplicationId = application.Id, RecruiterId = UserId,
             PanelistId = panelist.Id, ScheduledAt = scheduledAt,
@@ -187,6 +226,8 @@ public class HiringWorkflowController : ControllerBase
         _db.Interviews.Add(interview);
         application.Status = ApplicationStatus.Interview;
         application.ShortlistRank = null;
+        QueueInterviewNotifications(interview, application.UserId, application.User.FullName,
+            application.JobPosting.Title, panelist.FullName, NotificationKind.InterviewScheduled);
         await _db.SaveChangesAsync();
         await CompactRanks(application.JobPostingId);
         var saved = await InterviewsWithDetails(MyInterviews).AsNoTracking().FirstAsync(i => i.Id == interview.Id);
@@ -197,7 +238,10 @@ public class HiringWorkflowController : ControllerBase
     [Authorize(Roles = AppRoles.Recruiter)]
     public async Task<IActionResult> Reschedule(Guid id, RescheduleInterviewRequest request)
     {
-        var interview = await MyInterviews.Include(i => i.Feedback).FirstOrDefaultAsync(i => i.Id == id);
+        var interview = await MyInterviews.Include(i => i.Feedback)
+            .Include(i => i.Application).ThenInclude(a => a.User)
+            .Include(i => i.Application).ThenInclude(a => a.JobPosting)
+            .Include(i => i.Panelist).FirstOrDefaultAsync(i => i.Id == id);
         if (interview == null) return NotFound();
         if (interview.Status != InterviewStatus.Scheduled || interview.Feedback != null ||
             interview.ScheduledAt <= DateTime.UtcNow || request.ScheduledAt <= DateTimeOffset.UtcNow)
@@ -205,10 +249,18 @@ public class HiringWorkflowController : ControllerBase
         if (!IsOfficeTime(request.ScheduledAt))
             return BadRequest(new { message = $"One-hour interviews must start from 08:00 to 16:00 ({_officeTimeZone.Id})." });
         var when = request.ScheduledAt.UtcDateTime;
+        if (when == interview.ScheduledAt)
+            return BadRequest(new { message = "Choose a different interview time." });
         if (await _db.Interviews.AnyAsync(i => i.Id != id && i.PanelistId == interview.PanelistId &&
-            i.Status == InterviewStatus.Scheduled && i.ScheduledAt == when))
-            return Conflict(new { message = "This panelist already has an interview at that time." });
+            i.Status == InterviewStatus.Scheduled &&
+            i.ScheduledAt < when.AddMinutes(InterviewDurationMinutes) &&
+            i.ScheduledAt > when.AddMinutes(-InterviewDurationMinutes)))
+            return Conflict(new { message = "This panelist already has an overlapping interview." });
+        var previousTime = interview.ScheduledAt;
         interview.ScheduledAt = when;
+        QueueInterviewNotifications(interview, interview.Application.UserId,
+            interview.Application.User.FullName, interview.Application.JobPosting.Title,
+            interview.Panelist.FullName, NotificationKind.InterviewRescheduled, previousTime);
         await _db.SaveChangesAsync();
         return Ok(new { message = "Interview rescheduled." });
     }
@@ -217,7 +269,9 @@ public class HiringWorkflowController : ControllerBase
     [Authorize(Roles = AppRoles.Recruiter)]
     public async Task<IActionResult> Cancel(Guid id)
     {
-        var interview = await MyInterviews.Include(i => i.Application).Include(i => i.Feedback)
+        var interview = await MyInterviews.Include(i => i.Application).ThenInclude(a => a.User)
+            .Include(i => i.Application).ThenInclude(a => a.JobPosting)
+            .Include(i => i.Panelist).Include(i => i.Feedback)
             .FirstOrDefaultAsync(i => i.Id == id);
         if (interview == null) return NotFound();
         if (interview.Status != InterviewStatus.Scheduled || interview.Feedback != null ||
@@ -229,6 +283,9 @@ public class HiringWorkflowController : ControllerBase
         interview.Application.ShortlistRank = (await MyApplications
             .Where(a => a.JobPostingId == interview.Application.JobPostingId && a.Status == ApplicationStatus.Shortlisted)
             .MaxAsync(a => (int?)a.ShortlistRank) ?? 0) + 1;
+        QueueInterviewNotifications(interview, interview.Application.UserId,
+            interview.Application.User.FullName, interview.Application.JobPosting.Title,
+            interview.Panelist.FullName, NotificationKind.InterviewCancelled);
         await _db.SaveChangesAsync();
         return Ok(new { message = "Interview cancelled; candidate returned to the shortlist." });
     }

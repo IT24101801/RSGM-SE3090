@@ -56,6 +56,7 @@ public class ApplicationDbContext
     public DbSet<InterviewFeedback> InterviewFeedbacks => Set<InterviewFeedback>();
     public DbSet<Offer> Offers => Set<Offer>();
     public DbSet<OfferReview> OfferReviews => Set<OfferReview>();
+    public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
 
     // ---------------------------------------------------------
     // Companies
@@ -477,6 +478,18 @@ public class ApplicationDbContext
             entity.Property(x => x.Reason).HasMaxLength(1000);
             entity.HasOne(x => x.Offer).WithMany().HasForeignKey(x => x.OfferId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(x => x.HrUser).WithMany().HasForeignKey(x => x.HrUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<UserNotification>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Title).IsRequired().HasMaxLength(150);
+            entity.Property(x => x.Message).IsRequired().HasMaxLength(1200);
+            entity.Property(x => x.Link).IsRequired().HasMaxLength(150);
+            entity.HasIndex(x => new { x.RecipientId, x.CreatedAt });
+            entity.HasIndex(x => new { x.RecipientId, x.ReadAt });
+            entity.HasOne(x => x.Recipient).WithMany()
+                .HasForeignKey(x => x.RecipientId).OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<JobRequisition>(entity =>

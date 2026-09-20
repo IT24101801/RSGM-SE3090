@@ -35,6 +35,7 @@ import JobSeekerDashboardPage from "../pages/jobseeker/JobSeekerDashboardPage";
 import ProfilePage from "../pages/jobseeker/ProfilePage";
 import BrowseJobsPage from "../pages/jobseeker/BrowseJobsPage";
 import MyApplicationsPage from "../pages/jobseeker/MyApplicationsPage";
+import NotificationsPage from "../pages/common/NotificationsPage";
 
 import PanelistLayout from "../layouts/PanelistLayout";
 import PanelistDashboardPage from "../pages/panelist/PanelistDashboardPage";
@@ -117,6 +118,7 @@ function AppRoutes() {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="browse" element={<BrowseJobsPage />} />
         <Route path="applications" element={<MyApplicationsPage />} />
+        <Route path="notifications" element={<NotificationsPage role="jobseeker" />} />
       </Route>
 
       {/* ================= HIRING PANELIST ================= */}
@@ -130,6 +132,7 @@ function AppRoutes() {
       >
         <Route index element={<PanelistDashboardPage />} />
         <Route path="interviews" element={<MyInterviewsPage />} />
+        <Route path="notifications" element={<NotificationsPage role="panelist" />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

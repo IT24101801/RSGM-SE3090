@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import Brand from "../components/common/Brand";
+import NotificationsNavLink from "../components/common/NotificationsNavLink";
 import { getCurrentUser, logout } from "../services/authService";
 
 const NAV_ITEMS = [
@@ -48,6 +49,7 @@ function JobSeekerLayout() {
             {NAV_ITEMS.map((item) => (
               <SidebarLink key={item.to} {...item} />
             ))}
+            <NotificationsNavLink to="/jobs/notifications" />
           </nav>
 
           <div className="px-4 py-5 border-t border-neutral-200/70">
@@ -86,6 +88,7 @@ function JobSeekerLayout() {
                 {NAV_ITEMS.map((item) => (
                   <SidebarLink key={item.to} {...item} onClick={() => setMobileOpen(false)} />
                 ))}
+                <NotificationsNavLink to="/jobs/notifications" onClick={() => setMobileOpen(false)} />
               </nav>
 
               <div className="px-4 py-5 border-t border-neutral-200">
