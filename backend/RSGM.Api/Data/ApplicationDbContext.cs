@@ -52,6 +52,11 @@ public class ApplicationDbContext
     public DbSet<Application> Applications
         => Set<Application>();
 
+    public DbSet<Interview> Interviews => Set<Interview>();
+    public DbSet<InterviewFeedback> InterviewFeedbacks => Set<InterviewFeedback>();
+    public DbSet<Offer> Offers => Set<Offer>();
+    public DbSet<OfferReview> OfferReviews => Set<OfferReview>();
+
     // ---------------------------------------------------------
     // Companies
     // ---------------------------------------------------------
@@ -429,6 +434,49 @@ public class ApplicationDbContext
                 .WithMany(x => x.Applications)
                 .HasForeignKey(x => x.JobPostingId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<Interview>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Type).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.LocationOrLink).HasMaxLength(500);
+            entity.HasIndex(x => x.ApplicationId);
+            entity.HasIndex(x => new { x.PanelistId, x.ScheduledAt });
+            entity.HasOne(x => x.Application).WithMany().HasForeignKey(x => x.ApplicationId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Recruiter).WithMany().HasForeignKey(x => x.RecruiterId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Panelist).WithMany().HasForeignKey(x => x.PanelistId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<InterviewFeedback>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.InterviewId).IsUnique();
+            entity.Property(x => x.Recommendation).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Comments).HasMaxLength(2000);
+            entity.HasOne(x => x.Interview).WithOne(x => x.Feedback).HasForeignKey<InterviewFeedback>(x => x.InterviewId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<Offer>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.ApplicationId).IsUnique();
+            entity.Property(x => x.Salary).HasPrecision(18, 2);
+            entity.Property(x => x.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(x => x.Notes).HasMaxLength(2000);
+            entity.Property(x => x.RejectionReason).HasMaxLength(1000);
+            entity.HasOne(x => x.Application).WithMany().HasForeignKey(x => x.ApplicationId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Recruiter).WithMany().HasForeignKey(x => x.RecruiterId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.ReviewedByUser).WithMany().HasForeignKey(x => x.ReviewedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<OfferReview>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.OfferId);
+            entity.Property(x => x.Reason).HasMaxLength(1000);
+            entity.HasOne(x => x.Offer).WithMany().HasForeignKey(x => x.OfferId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.HrUser).WithMany().HasForeignKey(x => x.HrUserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<JobRequisition>(entity =>

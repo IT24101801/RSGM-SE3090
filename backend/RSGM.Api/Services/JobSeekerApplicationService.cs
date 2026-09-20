@@ -16,14 +16,12 @@ public class JobSeekerApplicationService
 {
     private readonly ApplicationDbContext _context;
 
-    public JobSeekerApplicationService(
-        ApplicationDbContext context)
+    public JobSeekerApplicationService(ApplicationDbContext context)
     {
         _context = context;
     }
 
-    public async Task<List<ApplicationResponse>> GetByUserIdAsync(
-        Guid userId)
+    public async Task<List<ApplicationResponse>> GetByUserIdAsync(Guid userId)
     {
         var applications = await _context.Applications
             .AsNoTracking()
@@ -34,22 +32,18 @@ public class JobSeekerApplicationService
             .OrderByDescending(x => x.AppliedAt)
             .ToListAsync();
 
-        var candidateSkillIds =
-            await GetCandidateSkillIdsAsync(userId);
+        var candidateSkillIds = await GetCandidateSkillIdsAsync(userId);
 
         return applications
             .Select(a => ToResponse(a, candidateSkillIds))
             .ToList();
     }
 
-    public async Task<(
-        CreateApplicationResult Result,
-        ApplicationResponse? Application)> CreateAsync(
+    public async Task<(CreateApplicationResult Result, ApplicationResponse? Application)> CreateAsync(
         Guid userId,
         CreateApplicationRequest request)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-
         var posting = await _context.JobPostings
             .Include(x => x.CompanyEntity)
             .Include(x => x.RequiredSkills)
@@ -57,8 +51,7 @@ public class JobSeekerApplicationService
             .FirstOrDefaultAsync(x =>
                 x.Id == request.JobPostingId &&
                 x.Status == JobPostingStatus.Published &&
-                (!x.CompanyId.HasValue ||
-                 x.CompanyEntity!.IsActive) &&
+                (!x.CompanyId.HasValue || x.CompanyEntity!.IsActive) &&
                 (!x.ApplicationDeadline.HasValue ||
                  x.ApplicationDeadline.Value >= today));
 
@@ -67,10 +60,8 @@ public class JobSeekerApplicationService
             return (CreateApplicationResult.JobNotFound, null);
         }
 
-        var alreadyApplied =
-            await _context.Applications.AnyAsync(x =>
-                x.UserId == userId &&
-                x.JobPostingId == posting.Id);
+        var alreadyApplied = await _context.Applications
+            .AnyAsync(x => x.UserId == userId && x.JobPostingId == posting.Id);
 
         if (alreadyApplied)
         {
@@ -84,60 +75,59 @@ public class JobSeekerApplicationService
         };
 
         _context.Applications.Add(application);
+
         await _context.SaveChangesAsync();
 
         application.JobPosting = posting;
 
-        var candidateSkillIds =
-            await GetCandidateSkillIdsAsync(userId);
+        var candidateSkillIds = await GetCandidateSkillIdsAsync(userId);
 
-        return (
-            CreateApplicationResult.Success,
-            ToResponse(application, candidateSkillIds)
-        );
+        return (CreateApplicationResult.Success, ToResponse(application, candidateSkillIds));
     }
 
-    public async Task<bool> WithdrawAsync(
-        Guid userId,
-        Guid applicationId)
+    public async Task<bool> WithdrawAsync(Guid userId, Guid applicationId)
     {
         var application = await _context.Applications
-            .FirstOrDefaultAsync(x =>
-                x.Id == applicationId &&
-                x.UserId == userId);
+            .FirstOrDefaultAsync(x => x.Id == applicationId && x.UserId == userId);
 
-        if (application == null ||
-            application.Status == ApplicationStatus.Withdrawn)
+        if (application == null || application.Status == ApplicationStatus.Withdrawn)
         {
             return false;
         }
 
         var jobId = application.JobPostingId;
-
         application.Status = ApplicationStatus.Withdrawn;
         application.ShortlistRank = null;
         application.WithdrawnAt = DateTime.UtcNow;
 
+        // A withdrawn candidate must not remain in an active interview or offer queue.
+        var futureInterviews = await _context.Interviews
+            .Where(i => i.ApplicationId == applicationId &&
+                i.Status == InterviewStatus.Scheduled && i.ScheduledAt > DateTime.UtcNow)
+            .ToListAsync();
+        foreach (var interview in futureInterviews)
+            interview.Status = InterviewStatus.Cancelled;
+
+        var activeOffer = await _context.Offers
+            .FirstOrDefaultAsync(o => o.ApplicationId == applicationId &&
+                o.Status != OfferStatus.Withdrawn);
+        if (activeOffer != null)
+            activeOffer.Status = OfferStatus.Withdrawn;
+
         var remaining = await _context.Applications
-            .Where(a =>
-                a.JobPostingId == jobId &&
-                a.Status == ApplicationStatus.Shortlisted)
+            .Where(a => a.JobPostingId == jobId && a.Status == ApplicationStatus.Shortlisted)
             .OrderBy(a => a.ShortlistRank)
             .ThenBy(a => a.AppliedAt)
             .ToListAsync();
-
         for (var i = 0; i < remaining.Count; i++)
-        {
             remaining[i].ShortlistRank = i + 1;
-        }
 
         await _context.SaveChangesAsync();
 
         return true;
     }
 
-    private async Task<HashSet<Guid>> GetCandidateSkillIdsAsync(
-        Guid userId)
+    private async Task<HashSet<Guid>> GetCandidateSkillIdsAsync(Guid userId)
     {
         var ids = await _context.JobSeekerSkills
             .Where(x => x.UserId == userId)
@@ -147,14 +137,15 @@ public class JobSeekerApplicationService
         return ids.ToHashSet();
     }
 
+    // Plain set comparison for now — the seam where a smarter (e.g. AI-driven)
+    // matching algorithm can later be swapped in without touching callers.
     private static ApplicationResponse ToResponse(
         Application application,
         HashSet<Guid> candidateSkillIds)
     {
-        var requiredSkills =
-            application.JobPosting.RequiredSkills
-                .Select(rs => rs.Skill)
-                .ToList();
+        var requiredSkills = application.JobPosting.RequiredSkills
+            .Select(rs => rs.Skill)
+            .ToList();
 
         var matchedSkills = requiredSkills
             .Where(s => candidateSkillIds.Contains(s.Id))
@@ -170,9 +161,7 @@ public class JobSeekerApplicationService
 
         var matchScore = requiredSkills.Count == 0
             ? 100
-            : (int)Math.Round(
-                matchedSkills.Count * 100.0 /
-                requiredSkills.Count);
+            : (int)Math.Round(matchedSkills.Count * 100.0 / requiredSkills.Count);
 
         return new ApplicationResponse
         {
