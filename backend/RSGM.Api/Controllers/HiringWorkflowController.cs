@@ -120,6 +120,7 @@ public class HiringWorkflowController : ControllerBase
     {
         i.Id, i.ApplicationId, Candidate = i.Application.User.FullName,
         Job = i.Application.JobPosting.Title, i.PanelistId,
+        i.Application.JobPostingId, i.HrManagerId,
         Panelist = i.Panelist.FullName, i.ScheduledAt, i.Type, i.LocationOrLink,
         Status = i.Status.ToString(), i.CreatedAt,
         CandidateEmail = i.Application.User.Email,
@@ -188,6 +189,7 @@ public class HiringWorkflowController : ControllerBase
     }
 
     [HttpPost("recruiter/interviews")]
+    [NonAction]
     [Authorize(Roles = AppRoles.Recruiter)]
     public async Task<IActionResult> Schedule(ScheduleInterviewRequest request)
     {
@@ -235,6 +237,7 @@ public class HiringWorkflowController : ControllerBase
     }
 
     [HttpPut("recruiter/interviews/{id:guid}/reschedule")]
+    [NonAction]
     [Authorize(Roles = AppRoles.Recruiter)]
     public async Task<IActionResult> Reschedule(Guid id, RescheduleInterviewRequest request)
     {
@@ -266,6 +269,7 @@ public class HiringWorkflowController : ControllerBase
     }
 
     [HttpPost("recruiter/interviews/{id:guid}/cancel")]
+    [NonAction]
     [Authorize(Roles = AppRoles.Recruiter)]
     public async Task<IActionResult> Cancel(Guid id)
     {
@@ -305,7 +309,7 @@ public class HiringWorkflowController : ControllerBase
     // Only the assigned active panelist may read this candidate's interview profile.
     private IQueryable<Interview> AssignedActiveInterview(Guid id) =>
         _db.Interviews.Where(i => i.Id == id && i.PanelistId == UserId &&
-            i.Status == InterviewStatus.Scheduled &&
+            i.Status != InterviewStatus.Cancelled &&
             i.Application.Status != ApplicationStatus.Withdrawn &&
             i.Application.JobPosting.CompanyId != null &&
             i.Application.JobPosting.CompanyEntity != null &&
@@ -384,6 +388,7 @@ public class HiringWorkflowController : ControllerBase
                     m.CompanyId == i.Application.JobPosting.CompanyId));
         if (interview == null) return NotFound();
         if (interview.Status != InterviewStatus.Scheduled || interview.ScheduledAt > DateTime.UtcNow ||
+            await _db.CandidateRecommendations.AnyAsync(r => r.InterviewId == id) ||
             await _db.Offers.AnyAsync(o => o.ApplicationId == interview.ApplicationId &&
                 o.Status != OfferStatus.Draft && o.Status != OfferStatus.Rejected))
             return Conflict(new { message = "Feedback is available after the interview and before offer approval." });
@@ -425,8 +430,9 @@ public class HiringWorkflowController : ControllerBase
             return Conflict(new { message = "An interview is required before drafting an offer." });
         var interview = await _db.Interviews.Include(i => i.Feedback)
             .FirstOrDefaultAsync(i => i.ApplicationId == application.Id && i.Status == InterviewStatus.Scheduled);
-        if (interview == null || interview.ScheduledAt > DateTime.UtcNow || interview.Feedback == null)
-            return Conflict(new { message = "Wait for the interview and required panelist feedback." });
+        if (interview == null || interview.ScheduledAt > DateTime.UtcNow || interview.Feedback == null ||
+            !await _db.CandidateRecommendations.AnyAsync(r => r.InterviewId == interview.Id && r.Selected))
+            return Conflict(new { message = "Wait for the panelist's completed interview and positive recommendation." });
         var offer = await MyOffers.FirstOrDefaultAsync(o => o.ApplicationId == application.Id);
         if (offer != null && offer.Status is not (OfferStatus.Draft or OfferStatus.Rejected))
             return Conflict(new { message = "This offer cannot be edited." });
@@ -451,7 +457,8 @@ public class HiringWorkflowController : ControllerBase
         var offer = await MyOffers.Include(o => o.Application).FirstOrDefaultAsync(o => o.Id == id);
         if (offer == null) return NotFound();
         var hasFeedback = await _db.Interviews.AnyAsync(i => i.ApplicationId == offer.ApplicationId &&
-            i.Status == InterviewStatus.Scheduled && i.ScheduledAt <= DateTime.UtcNow && i.Feedback != null);
+            i.Status == InterviewStatus.Scheduled && i.ScheduledAt <= DateTime.UtcNow && i.Feedback != null &&
+            _db.CandidateRecommendations.Any(r => r.InterviewId == i.Id && r.Selected));
         if (offer.Status != OfferStatus.Draft || offer.Application.Status != ApplicationStatus.Interview || !hasFeedback)
             return Conflict(new { message = "A valid draft and completed interview feedback are required." });
         offer.Status = OfferStatus.Submitted;
@@ -491,7 +498,8 @@ public class HiringWorkflowController : ControllerBase
         if (offer == null) return NotFound();
         if (offer.Status != OfferStatus.Submitted || offer.Application.Status != ApplicationStatus.Interview ||
             !await _db.Interviews.AnyAsync(i => i.ApplicationId == offer.ApplicationId &&
-                i.Status == InterviewStatus.Scheduled && i.ScheduledAt <= DateTime.UtcNow && i.Feedback != null))
+                i.Status == InterviewStatus.Scheduled && i.ScheduledAt <= DateTime.UtcNow && i.Feedback != null &&
+                _db.CandidateRecommendations.Any(r => r.InterviewId == i.Id && r.Selected)))
             return Conflict(new { message = "This offer cannot be approved without completed interview feedback." });
         offer.Status = OfferStatus.Approved;
         offer.ReviewedByUserId = UserId;

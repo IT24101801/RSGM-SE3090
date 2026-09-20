@@ -103,7 +103,7 @@ public class JobSeekerApplicationService
         // A withdrawn candidate must not remain in an active interview or offer queue.
         var futureInterviews = await _context.Interviews
             .Where(i => i.ApplicationId == applicationId &&
-                i.Status == InterviewStatus.Scheduled && i.ScheduledAt > DateTime.UtcNow)
+                i.Status != InterviewStatus.Cancelled && i.ScheduledAt > DateTime.UtcNow)
             .ToListAsync();
         foreach (var interview in futureInterviews)
             interview.Status = InterviewStatus.Cancelled;

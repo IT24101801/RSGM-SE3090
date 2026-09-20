@@ -57,6 +57,10 @@ public class ApplicationDbContext
     public DbSet<Offer> Offers => Set<Offer>();
     public DbSet<OfferReview> OfferReviews => Set<OfferReview>();
     public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
+    public DbSet<ShortlistDispatch> ShortlistDispatches => Set<ShortlistDispatch>();
+    public DbSet<ShortlistDispatchCandidate> ShortlistDispatchCandidates => Set<ShortlistDispatchCandidate>();
+    public DbSet<UserAvailability> UserAvailabilities => Set<UserAvailability>();
+    public DbSet<CandidateRecommendation> CandidateRecommendations => Set<CandidateRecommendation>();
 
     // ---------------------------------------------------------
     // Companies
@@ -447,6 +451,7 @@ public class ApplicationDbContext
             entity.HasOne(x => x.Application).WithMany().HasForeignKey(x => x.ApplicationId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.Recruiter).WithMany().HasForeignKey(x => x.RecruiterId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.Panelist).WithMany().HasForeignKey(x => x.PanelistId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.HrManager).WithMany().HasForeignKey(x => x.HrManagerId).OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<InterviewFeedback>(entity =>
@@ -490,6 +495,43 @@ public class ApplicationDbContext
             entity.HasIndex(x => new { x.RecipientId, x.ReadAt });
             entity.HasOne(x => x.Recipient).WithMany()
                 .HasForeignKey(x => x.RecipientId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ShortlistDispatch>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.JobPostingId).IsUnique();
+            entity.HasIndex(x => x.PanelistId);
+            entity.HasOne(x => x.JobPosting).WithMany().HasForeignKey(x => x.JobPostingId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Recruiter).WithMany().HasForeignKey(x => x.RecruiterId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Panelist).WithMany().HasForeignKey(x => x.PanelistId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<ShortlistDispatchCandidate>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.DispatchId, x.ApplicationId }).IsUnique();
+            entity.HasOne(x => x.Dispatch).WithMany(x => x.Candidates)
+                .HasForeignKey(x => x.DispatchId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Application).WithMany()
+                .HasForeignKey(x => x.ApplicationId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<UserAvailability>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.UserId, x.StartsAt }).IsUnique();
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<CandidateRecommendation>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.InterviewId).IsUnique();
+            entity.Property(x => x.Rationale).IsRequired().HasMaxLength(2000);
+            entity.HasOne(x => x.Interview).WithMany().HasForeignKey(x => x.InterviewId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Panelist).WithMany().HasForeignKey(x => x.PanelistId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.HrManager).WithMany().HasForeignKey(x => x.HrManagerId).OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<JobRequisition>(entity =>
