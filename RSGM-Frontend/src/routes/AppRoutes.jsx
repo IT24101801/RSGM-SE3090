@@ -22,6 +22,10 @@ import ApplicationsPage from "../pages/recruiter/ApplicationsPage";
 import CandidateMatchingPage from "../pages/recruiter/CandidateMatchingPage";
 import ShortlistsPage from "../pages/recruiter/ShortlistsPage";
 import InterviewsPage from "../pages/recruiter/InterviewsPage";
+import AvailabilityPage from "../pages/common/AvailabilityPage";
+import PanelistShortlistsPage from "../pages/panelist/ShortlistsPage";
+import JobSeekerInterviewsPage from "../pages/jobseeker/MyInterviewsPage";
+import RecommendationsPage from "../pages/hr/RecommendationsPage";
 
 import HRLayout from "../layouts/HRLayout";
 import HRDashboardPage from "../pages/hr/HRDashboardPage";
@@ -86,6 +90,7 @@ function AppRoutes() {
         <Route path="applications" element={<ApplicationsPage />} />
         <Route path="matching" element={<CandidateMatchingPage />} />
         <Route path="shortlists" element={<ShortlistsPage />} />
+        <Route path="availability" element={<AvailabilityPage />} />
         <Route path="interviews" element={<InterviewsPage />} />
       </Route>
 
@@ -101,6 +106,8 @@ function AppRoutes() {
         <Route index element={<HRDashboardPage />} />
         <Route path="requisitions" element={<RequisitionApprovalsPage />} />
         <Route path="offers" element={<OfferApprovalsPage />} />
+        <Route path="recommendations" element={<RecommendationsPage />} />
+        <Route path="availability" element={<AvailabilityPage />} />
         <Route path="workflows" element={<WorkflowMonitoringPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
       </Route>
@@ -118,6 +125,7 @@ function AppRoutes() {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="browse" element={<BrowseJobsPage />} />
         <Route path="applications" element={<MyApplicationsPage />} />
+        <Route path="interviews" element={<JobSeekerInterviewsPage />} />
         <Route path="notifications" element={<NotificationsPage role="jobseeker" />} />
       </Route>
 
@@ -132,6 +140,8 @@ function AppRoutes() {
       >
         <Route index element={<PanelistDashboardPage />} />
         <Route path="interviews" element={<MyInterviewsPage />} />
+        <Route path="shortlists" element={<PanelistShortlistsPage />} />
+        <Route path="availability" element={<AvailabilityPage />} />
         <Route path="notifications" element={<NotificationsPage role="panelist" />} />
       </Route>
 

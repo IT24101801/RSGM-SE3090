@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { AlertCircle, CalendarClock, CheckCircle2, Download, Loader2, Sparkles, Star } from "lucide-react";
 import {
   downloadPanelistCandidateCv, getPanelistCandidate, getPanelistInterviews,
   saveInterviewFeedback,
 } from "../../services/hiringWorkflowService";
+
+import { cancelPanelistInterview, changeInterviewTime, getAvailableSlots, getPanelistRecommendations, recommendCandidate } from "../../services/panelistWorkflowService";
 
 const card = "rounded-2xl border border-white/70 bg-white/75 p-5 backdrop-blur-2xl shadow-xl shadow-neutral-200/30";
 const criteria = [["technicalSkills", "Technical skills"], ["problemSolving", "Problem solving"],
@@ -12,12 +15,16 @@ const recommendations = ["Strong Hire", "Hire", "Leaning No", "No Hire"];
 
 export default function MyInterviewsPage() {
   const [interviews, setInterviews] = useState([]);
+  const [decisions, setDecisions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState(null);
   const [viewing, setViewing] = useState(null);
+  const [recommendFor, setRecommendFor] = useState(null);
+  const [choice, setChoice] = useState("yes");
+  const [rationale, setRationale] = useState("");
   const [busy, setBusy] = useState(false);
-  const refresh = useCallback(async () => { setInterviews(await getPanelistInterviews()); }, []);
+  const refresh = useCallback(async () => { const [sessions, recommendations] = await Promise.all([getPanelistInterviews(), getPanelistRecommendations()]); setInterviews(sessions); setDecisions(recommendations); }, []);
   useEffect(() => { refresh().catch((e) => setError(e.message)).finally(() => setLoading(false)); }, [refresh]);
 
   async function submit(id, feedback) {
@@ -27,10 +34,35 @@ export default function MyInterviewsPage() {
     finally { setBusy(false); }
   }
 
+  async function act(action) {
+    setBusy(true); setError("");
+    try { await action(); await refresh(); }
+    catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+  async function change(i) {
+    try {
+      const slots = await getAvailableSlots(i.jobPostingId, i.hrManagerId);
+      const choices = slots.filter((slot) => slot !== i.scheduledAt);
+      if (!choices.length) { setError("No other shared slots are available. Ask everyone to add matching availability."); return; }
+      const details = choices.map((slot, index) => `${index + 1}. ${new Date(slot).toLocaleString()}`).join("\n");
+      const choice = Number(window.prompt(`Select a new shared slot by number:\n${details}`));
+      if (choice >= 1 && choice <= choices.length) await act(() => changeInterviewTime(i.id, choices[choice - 1]));
+    } catch (e) { setError(e.message); }
+  }
+  async function submitRecommendation(e) {
+    e.preventDefault();
+    setBusy(true); setError("");
+    try { await recommendCandidate(recommendFor.id, choice === "yes", rationale.trim()); await refresh(); setRecommendFor(null); setRationale(""); }
+    catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  }
+
   return <div>
     <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-semibold text-amber-600"><Sparkles size={12} />ASSIGNED INTERVIEWS</span>
     <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">My interviews</h1>
-    <p className="mt-2 text-neutral-500">Review assigned candidates and submit feedback after each interview.</p>
+    <p className="mt-2 text-neutral-500">Propose interview times, review candidate profiles and CVs, then forward recommendations to HR.</p>
+    <Link to="/panelist/shortlists" className="mt-3 inline-block text-sm font-semibold text-amber-700">View assigned shortlists →</Link>
     {error && <p role="alert" className="mt-6 flex gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700"><AlertCircle size={16} />{error}</p>}
     <div className="mt-8 space-y-3">
       {loading && <p className="flex items-center gap-2 text-sm text-neutral-500"><Loader2 size={16} className="animate-spin" />Loading interviews…</p>}
@@ -43,12 +75,17 @@ export default function MyInterviewsPage() {
           <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">{i.status}</span>
         </div>
         {i.feedback && <p className="mt-3 flex items-center gap-1.5 text-sm text-emerald-700"><CheckCircle2 size={15} />Feedback submitted: {i.feedback.recommendation}</p>}
-        {i.status === "Scheduled" && <div className="mt-4 flex flex-wrap gap-2">
+        {decisions.find((r) => r.interviewId === i.id) && <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">Decision sent to HR: {decisions.find((r) => r.interviewId === i.id).selected ? "Recommended" : "Not recommended"}</p>}
+        {i.status !== "Cancelled" && <div className="mt-4 flex flex-wrap gap-2">
           <button type="button" onClick={() => setViewing(i)} className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 hover:bg-amber-100">View candidate & CV</button>
-          {new Date(i.scheduledAt) <= new Date() && <button type="button" onClick={() => setSelected(i)} className="rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800">{i.feedback ? "View / edit feedback" : "Give feedback"}</button>}
+          {i.status === "Scheduled" && new Date(i.scheduledAt) <= new Date() && !decisions.some((r) => r.interviewId === i.id) && <button type="button" onClick={() => setSelected(i)} className="rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800">{i.feedback ? "View / edit feedback" : "Give feedback"}</button>}
+          {new Date(i.scheduledAt) > new Date() && i.hrManagerId && <button type="button" disabled={busy} onClick={() => change(i)} className="rounded-xl border border-amber-200 px-4 py-2.5 text-sm font-semibold text-amber-700">Propose new time</button>}
+          {new Date(i.scheduledAt) > new Date() && !i.feedback && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this interview?")) act(() => cancelPanelistInterview(i.id)); }} className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700">Cancel</button>}
+          {i.status === "Scheduled" && new Date(i.scheduledAt) <= new Date() && i.feedback && !decisions.some((r) => r.interviewId === i.id) && <button type="button" disabled={busy} onClick={() => setRecommendFor(i)} className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white">Send recommendation to HR</button>}
         </div>}
       </div>)}
     </div>
+    {recommendFor && <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 p-4"><form onSubmit={submitRecommendation} className="w-full max-w-lg space-y-4 rounded-3xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">Recommendation to HR</h2><p className="mt-1 text-sm text-neutral-500">{recommendFor.candidate} · {recommendFor.job}</p></div><button type="button" aria-label="Close" onClick={() => setRecommendFor(null)}>✕</button></div><label className="block text-sm font-medium">Decision<select className="mt-2 w-full rounded-xl border border-neutral-200 p-3" value={choice} onChange={(e) => setChoice(e.target.value)}><option value="yes">Recommend</option><option value="no">Do not recommend</option></select></label><label className="block text-sm font-medium">Rationale<textarea required maxLength={2000} rows={5} value={rationale} onChange={(e) => setRationale(e.target.value)} className="mt-2 w-full rounded-xl border border-neutral-200 p-3" /></label><button disabled={busy || !rationale.trim()} className="w-full rounded-xl bg-amber-600 py-3 text-sm font-semibold text-white disabled:opacity-50">Submit to HR</button></form></div>}
     {selected && <FeedbackDialog key={selected.id} interview={selected} busy={busy} onClose={() => setSelected(null)} onSubmit={(feedback) => submit(selected.id, feedback)} />}
     {viewing && <CandidateDialog key={viewing.id} interview={viewing} onClose={() => setViewing(null)} onFeedback={() => { setSelected(viewing); setViewing(null); }} />}
   </div>;
@@ -138,7 +175,7 @@ function CandidateDialog({ interview, onClose, onFeedback }) {
         </div></section>
         {links.length > 0 && <div className="flex flex-wrap gap-2">{links.map(([label, url]) => <a key={label} href={url} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-neutral-200 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50">{label} ↗</a>)}</div>}
         {candidate.hasCv ? <button type="button" onClick={download} disabled={downloading} className="flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 font-semibold text-white hover:bg-amber-700 disabled:opacity-50"><Download size={16} />{downloading ? "Downloading…" : `Download ${candidate.cvFileName || "CV"}`}</button> : <p className="text-neutral-400">No CV uploaded.</p>}
-        {new Date(interview.scheduledAt) <= new Date() && <button type="button" onClick={onFeedback} className="rounded-xl bg-neutral-900 px-4 py-2.5 font-semibold text-white hover:bg-neutral-800">Give interview feedback</button>}
+        {interview.status === "Scheduled" && new Date(interview.scheduledAt) <= new Date() && <button type="button" onClick={onFeedback} className="rounded-xl bg-neutral-900 px-4 py-2.5 font-semibold text-white hover:bg-neutral-800">Give interview feedback</button>}
       </div>}
     </div>
   </div>;

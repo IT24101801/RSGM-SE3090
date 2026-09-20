@@ -15,6 +15,8 @@ import { getCurrentUser, logout } from "../services/authService";
 
 const NAV_ITEMS = [
   { to: "/panelist", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/panelist/shortlists", label: "Shortlists", icon: CalendarClock },
+  { to: "/panelist/availability", label: "Availability", icon: CalendarClock },
   { to: "/panelist/interviews", label: "My Interviews", icon: CalendarClock },
 ];
 

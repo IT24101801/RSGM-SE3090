@@ -18,6 +18,8 @@ import { getCurrentUser, logout } from "../services/authService";
 const NAV_ITEMS = [
   { to: "/hr", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/hr/requisitions", label: "Requisition Approvals", icon: ClipboardList },
+  { to: "/hr/recommendations", label: "Recommendations", icon: BadgeCheck },
+  { to: "/hr/availability", label: "Availability", icon: BadgeCheck },
   { to: "/hr/offers", label: "Offer Approvals", icon: BadgeCheck },
   { to: "/hr/workflows", label: "Workflow Monitoring", icon: Workflow },
   { to: "/hr/analytics", label: "Analytics", icon: BarChart3 },

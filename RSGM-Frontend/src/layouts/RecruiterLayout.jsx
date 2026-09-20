@@ -53,6 +53,7 @@ const NAV_ITEMS = [
     label: "Shortlists",
     icon: Users,
   },
+  { to: "/recruiter/availability", label: "Availability", icon: CalendarClock },
   {
     to: "/recruiter/interviews",
     label: "Interviews",

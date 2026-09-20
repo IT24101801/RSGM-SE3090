@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { to: "/jobs", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/jobs/profile", label: "My Profile", icon: User },
   { to: "/jobs/browse", label: "Browse Jobs", icon: Briefcase },
+  { to: "/jobs/interviews", label: "My Interviews", icon: FileStack },
   { to: "/jobs/applications", label: "My Applications", icon: FileStack },
 ];
 
