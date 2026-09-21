@@ -1,7 +1,7 @@
 namespace RSGM.Api.Models.Entities;
 
 public enum InterviewStatus { Scheduled, Cancelled, Proposed, RescheduleRequested }
-public enum OfferStatus { Draft, Submitted, Approved, Rejected, Withdrawn }
+public enum OfferStatus { Draft, Submitted, Approved, Rejected, Withdrawn, Accepted, Declined }
 
 public class Interview
 {
@@ -32,6 +32,8 @@ public class InterviewFeedback
     public int CultureFit { get; set; }
     public string Recommendation { get; set; } = string.Empty;
     public string? Comments { get; set; }
+    public decimal DesiredSalary { get; set; }
+    public string DesiredSalaryCurrency { get; set; } = "LKR";
     public DateTime SubmittedAt { get; set; } = DateTime.UtcNow;
     public Interview Interview { get; set; } = null!;
 }
@@ -50,6 +52,8 @@ public class Offer
     public Guid? ReviewedByUserId { get; set; }
     public DateTime? SubmittedAt { get; set; }
     public DateTime? ReviewedAt { get; set; }
+    public DateTime? RespondedAt { get; set; }
+    public string? CandidateDeclineReason { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public Application Application { get; set; } = null!;
     public ApplicationUser Recruiter { get; set; } = null!;

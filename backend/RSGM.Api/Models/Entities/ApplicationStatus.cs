@@ -7,7 +7,9 @@ public enum ApplicationStatus
     Interview,
     Offer,
     Rejected,
-    Withdrawn
+    Withdrawn,
+    Hired,
+    OfferDeclined
 }
 
 public class Application

@@ -23,12 +23,14 @@ public class ShortlistDispatchCandidate
     public Application Application { get; set; } = null!;
 }
 
-public class UserAvailability
+public class UserBusyTime
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid UserId { get; set; }
     public DateTime StartsAt { get; set; }
     public DateTime EndsAt { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public ApplicationUser User { get; set; } = null!;
 }
 

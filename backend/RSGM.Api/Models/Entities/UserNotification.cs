@@ -8,7 +8,14 @@ public enum NotificationKind
     ShortlistSubmitted,
     CandidateConfirmed,
     RescheduleRequested,
-    CandidateRecommended
+    CandidateRecommended,
+    SalaryExpectationSubmitted,
+    OfferSubmitted,
+    OfferApproved,
+    OfferRejected,
+    OfferReceived,
+    OfferAccepted,
+    OfferDeclined
 }
 
 public class UserNotification
