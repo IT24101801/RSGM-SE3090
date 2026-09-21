@@ -281,6 +281,15 @@ public class ApplicationDbContext
             entity.Property(x => x.LogoUrl)
                 .HasMaxLength(500);
 
+            entity.Property(x => x.OrganizationType)
+                .HasMaxLength(30);
+
+            entity.Property(x => x.MainDepartments)
+                .HasMaxLength(2000);
+
+            entity.Property(x => x.MajorSkillRequirements)
+                .HasMaxLength(2000);
+
             entity.HasIndex(x => x.NormalizedName)
                 .IsUnique();
         });

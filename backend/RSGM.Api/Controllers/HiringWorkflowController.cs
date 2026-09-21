@@ -46,9 +46,10 @@ public class HiringWorkflowController : ControllerBase
 
     private bool IsOfficeTime(DateTimeOffset when)
     {
-        var time = TimeZoneInfo.ConvertTime(when, _officeTimeZone).TimeOfDay;
-        return time >= TimeSpan.FromHours(8) &&
-            time + TimeSpan.FromMinutes(InterviewDurationMinutes) <= TimeSpan.FromHours(17);
+        var local = TimeZoneInfo.ConvertTime(when, _officeTimeZone);
+        return local.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) &&
+            local.TimeOfDay >= TimeSpan.FromHours(9) &&
+            local.TimeOfDay + TimeSpan.FromMinutes(InterviewDurationMinutes) <= TimeSpan.FromHours(17);
     }
 
     private string InterviewTime(DateTime scheduledAt) =>
@@ -170,7 +171,7 @@ public class HiringWorkflowController : ControllerBase
     public IActionResult OfficeHours() => Ok(new
     {
         timeZoneId = _officeTimeZone.Id,
-        startsAt = "08:00",
+        startsAt = "09:00",
         endsAt = "17:00",
         durationMinutes = InterviewDurationMinutes
     });
@@ -211,7 +212,7 @@ public class HiringWorkflowController : ControllerBase
             request.LocationOrLink?.Length > 500)
             return BadRequest(new { message = "Enter a future date, interview type, and valid location or link." });
         if (!IsOfficeTime(request.ScheduledAt))
-            return BadRequest(new { message = $"One-hour interviews must start from 08:00 to 16:00 ({_officeTimeZone.Id})." });
+            return BadRequest(new { message = $"One-hour interviews must start on weekdays from 09:00 to 16:00 ({_officeTimeZone.Id})." });
 
         var application = await MyApplications.Include(a => a.JobPosting).Include(a => a.User)
             .FirstOrDefaultAsync(a => a.Id == request.ApplicationId);
@@ -263,7 +264,7 @@ public class HiringWorkflowController : ControllerBase
             interview.ScheduledAt <= DateTime.UtcNow || request.ScheduledAt <= DateTimeOffset.UtcNow)
             return Conflict(new { message = "Only future interviews without feedback can be rescheduled." });
         if (!IsOfficeTime(request.ScheduledAt))
-            return BadRequest(new { message = $"One-hour interviews must start from 08:00 to 16:00 ({_officeTimeZone.Id})." });
+            return BadRequest(new { message = $"One-hour interviews must start on weekdays from 09:00 to 16:00 ({_officeTimeZone.Id})." });
         var when = request.ScheduledAt.UtcDateTime;
         if (when == interview.ScheduledAt)
             return BadRequest(new { message = "Choose a different interview time." });
@@ -535,7 +536,7 @@ public class HiringWorkflowController : ControllerBase
     public async Task<IActionResult> ApproveOffer(Guid id)
     {
         var offer = await CompanyOffers.Include(o => o.Application).ThenInclude(a => a.User)
-            .Include(o => o.Application).ThenInclude(a => a.JobPosting)
+            .Include(o => o.Application).ThenInclude(a => a.JobPosting).ThenInclude(j => j.CompanyEntity)
             .FirstOrDefaultAsync(o => o.Id == id);
         if (offer == null) return NotFound();
         if (offer.Status != OfferStatus.Submitted || offer.Application.Status != ApplicationStatus.Interview ||
@@ -558,7 +559,13 @@ public class HiringWorkflowController : ControllerBase
         await _db.SaveChangesAsync();
         await _email.SendAsync(offer.Application.User.Email ?? string.Empty,
             $"Job offer: {offer.Application.JobPosting.Title}",
-            $"Your offer for {offer.Application.JobPosting.Title} has been approved. Sign in to RSGM and open My Offers to respond.",
+            $"Hello {offer.Application.User.FullName},\n\n" +
+            $"We are pleased to offer you the position of {offer.Application.JobPosting.Title} at " +
+            $"{offer.Application.JobPosting.CompanyEntity?.Name ?? offer.Application.JobPosting.Company}.\n\n" +
+            $"Salary: {offer.Currency} {offer.Salary:N2}\n" +
+            $"Proposed starting date: {offer.StartDate:yyyy-MM-dd}\n" +
+            (string.IsNullOrWhiteSpace(offer.Notes) ? string.Empty : $"Additional information: {offer.Notes}\n") +
+            "\nSign in to RSGM and open My Offers to review and accept or decline this offer.\n\nRSGM Recruitment",
             HttpContext.RequestAborted);
         return Ok(new { message = "Offer approved." });
     }
@@ -595,13 +602,9 @@ public class HiringWorkflowController : ControllerBase
     public async Task<IActionResult> JobSeekerOffers()
     {
         var rows = await _db.Offers.AsNoTracking()
-            .Where(o =>
-    o.Application.UserId == UserId &&
-    (
-        o.Status == OfferStatus.Approved ||
-        o.Status == OfferStatus.Accepted ||
-        o.Status == OfferStatus.Declined
-    ))
+            .Where(o => o.Application.UserId == UserId &&
+                (o.Status == OfferStatus.Approved || o.Status == OfferStatus.Accepted ||
+                    o.Status == OfferStatus.Declined))
             .Include(o => o.Application).ThenInclude(a => a.JobPosting)
             .ThenInclude(j => j.CompanyEntity)
             .OrderByDescending(o => o.ReviewedAt).ToListAsync();
@@ -627,6 +630,11 @@ public class HiringWorkflowController : ControllerBase
         offer.Status = OfferStatus.Accepted;
         offer.RespondedAt = DateTime.UtcNow;
         offer.Application.Status = ApplicationStatus.Hired;
+        if (offer.Application.JobPosting.CompanyEntity != null)
+        {
+            offer.Application.JobPosting.CompanyEntity.CurrentEmployeeCount++;
+            offer.Application.JobPosting.CompanyEntity.UpdatedAt = DateTime.UtcNow;
+        }
         await NotifyOfferResponse(offer, accepted: true, null);
         await _db.SaveChangesAsync();
         await SendOfferResponseEmails(offer, accepted: true);
@@ -655,7 +663,7 @@ public class HiringWorkflowController : ControllerBase
 
     private Task<Offer?> CandidateOffer(Guid id) => _db.Offers
         .Include(o => o.Application).ThenInclude(a => a.User)
-        .Include(o => o.Application).ThenInclude(a => a.JobPosting)
+        .Include(o => o.Application).ThenInclude(a => a.JobPosting).ThenInclude(j => j.CompanyEntity)
         .FirstOrDefaultAsync(o => o.Id == id && o.Application.UserId == UserId);
 
     private async Task NotifyOfferResponse(Offer offer, bool accepted, string? reason)

@@ -28,6 +28,7 @@ public class PanelistWorkflowController : ControllerBase
     private readonly UserManager<ApplicationUser> _users;
     private readonly TimeZoneInfo _zone;
     private readonly IEmailService _email;
+    private readonly string _frontendBaseUrl;
     private const int SlotMinutes = 60;
 
     public PanelistWorkflowController(ApplicationDbContext db,
@@ -37,6 +38,7 @@ public class PanelistWorkflowController : ControllerBase
         _users = users;
         _email = email;
         _zone = TimeZoneInfo.FindSystemTimeZoneById(config["Hiring:TimeZoneId"] ?? "Asia/Colombo");
+        _frontendBaseUrl = (config["Frontend:BaseUrl"] ?? "http://localhost:5173").TrimEnd('/');
     }
 
     private Guid Me => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
@@ -50,8 +52,22 @@ public class PanelistWorkflowController : ControllerBase
 
     private static bool InHours(DateTimeOffset date, TimeZoneInfo zone)
     {
-        var hour = TimeZoneInfo.ConvertTime(date, zone).TimeOfDay;
-        return hour >= TimeSpan.FromHours(8) && hour + TimeSpan.FromMinutes(SlotMinutes) <= TimeSpan.FromHours(17);
+        var local = TimeZoneInfo.ConvertTime(date, zone);
+        return local.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) &&
+            local.TimeOfDay >= TimeSpan.FromHours(9) &&
+            local.TimeOfDay + TimeSpan.FromMinutes(SlotMinutes) <= TimeSpan.FromHours(17);
+    }
+
+    private bool BusyTimeAllowed(DateTimeOffset start, DateTimeOffset end)
+    {
+        var localStart = TimeZoneInfo.ConvertTime(start, _zone);
+        var localEnd = TimeZoneInfo.ConvertTime(end, _zone);
+        return start > DateTimeOffset.UtcNow && end > start &&
+            end <= DateTimeOffset.UtcNow.AddDays(365) &&
+            localStart.Date == localEnd.Date &&
+            localStart.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) &&
+            localStart.TimeOfDay >= TimeSpan.FromHours(9) &&
+            localEnd.TimeOfDay <= TimeSpan.FromHours(17);
     }
 
     private bool Allowed(DateTimeOffset date) =>
@@ -164,10 +180,8 @@ public class PanelistWorkflowController : ControllerBase
     public async Task<IActionResult> AddBusyTime(BusyTimeRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Length > 150 ||
-            request.Description?.Length > 500 || request.StartsAt <= DateTimeOffset.UtcNow ||
-            request.EndsAt <= request.StartsAt || request.EndsAt > DateTimeOffset.UtcNow.AddDays(365) ||
-            request.EndsAt - request.StartsAt > TimeSpan.FromDays(7))
-            return BadRequest(new { message = "Enter a title and a valid future start/end time." });
+            request.Description?.Length > 500 || !BusyTimeAllowed(request.StartsAt, request.EndsAt))
+            return BadRequest(new { message = "Busy times must be future weekday periods within 9:00 AM–5:00 PM." });
         if (!await _db.CompanyMembers.AnyAsync(m => m.UserId == Me && m.IsActive && m.Company.IsActive))
             return Forbid();
         var start = request.StartsAt.UtcDateTime;
@@ -228,7 +242,7 @@ public class PanelistWorkflowController : ControllerBase
         {
             var date = localToday.AddDays(dayOffset);
             if (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) continue;
-            for (var hour = 8; hour <= 16 && slots.Count < 60; hour++)
+            for (var hour = 9; hour <= 16 && slots.Count < 60; hour++)
             {
                 var local = DateTime.SpecifyKind(date.AddHours(hour), DateTimeKind.Unspecified);
                 var start = TimeZoneInfo.ConvertTimeToUtc(local, _zone);
@@ -288,10 +302,17 @@ public class PanelistWorkflowController : ControllerBase
             $"An interview for {application.JobPosting.Title} is proposed for {when}.",
             "/hr/recommendations");
         await _db.SaveChangesAsync();
+        var panelist = await _users.FindByIdAsync(Me.ToString());
         await _email.SendAsync(application.User.Email ?? string.Empty,
             $"Interview proposed: {application.JobPosting.Title}",
-            $"Your interview is proposed for {when}. Sign in to RSGM to confirm or request a new time.",
-            HttpContext.RequestAborted);
+            $"Hello {application.User.FullName},\n\n" +
+            $"Your interview for {application.JobPosting.Title} is proposed for {when}.\n" +
+            $"Interview type: {interview.Type}\n" +
+            $"Location or meeting link: {interview.LocationOrLink}\n" +
+            $"Hiring panelist: {panelist?.FullName ?? "Hiring Panelist"}\n\n" +
+            $"Confirm the interview or request another time at {_frontendBaseUrl}/jobs/interviews. " +
+            "If you cannot access RSGM, reply to this email and explain your availability.\n\nRSGM Recruitment",
+            HttpContext.RequestAborted, panelist?.Email);
         var rest = await _db.Applications.Where(a =>
             a.JobPostingId == application.JobPostingId && a.Status == ApplicationStatus.Shortlisted)
             .OrderBy(a => a.ShortlistRank).ToListAsync();
@@ -360,6 +381,8 @@ public class PanelistWorkflowController : ControllerBase
     {
         var interview = await _db.Interviews.Include(i => i.Application)
             .ThenInclude(a => a.JobPosting)
+            .Include(i => i.Application).ThenInclude(a => a.User)
+            .Include(i => i.Panelist)
             .FirstOrDefaultAsync(i => i.Id == id && i.PanelistId == Me &&
                 i.Application.Status == ApplicationStatus.Interview);
         if (interview == null) return NotFound();
@@ -384,6 +407,16 @@ public class PanelistWorkflowController : ControllerBase
                 recipient == interview.RecruiterId ? "/recruiter/interviews" : "/hr/recommendations",
                 NotificationKind.InterviewRescheduled);
         await _db.SaveChangesAsync();
+        await _email.SendAsync(interview.Application.User.Email ?? string.Empty,
+            $"Interview rescheduled: {interview.Application.JobPosting.Title}",
+            $"Hello {interview.Application.User.FullName},\n\n" +
+            $"Your interview for {interview.Application.JobPosting.Title} has moved from {old} to {When(next)}.\n" +
+            $"Interview type: {interview.Type}\n" +
+            $"Location or meeting link: {interview.LocationOrLink}\n" +
+            $"Hiring panelist: {interview.Panelist.FullName}\n\n" +
+            $"Please confirm or request another time at {_frontendBaseUrl}/jobs/interviews. " +
+            "You may also reply to this email with your availability.\n\nRSGM Recruitment",
+            HttpContext.RequestAborted, interview.Panelist.Email);
         return Ok(new { status = interview.Status.ToString(), interview.ScheduledAt });
     }
 
@@ -472,16 +505,46 @@ public class PanelistWorkflowController : ControllerBase
         var rows = await _db.CandidateRecommendations.AsNoTracking()
             .Include(r => r.Interview).ThenInclude(i => i.Application).ThenInclude(a => a.User)
             .Include(r => r.Interview).ThenInclude(i => i.Application).ThenInclude(a => a.JobPosting)
+            .Include(r => r.Interview).ThenInclude(i => i.Feedback)
             .Include(r => r.Panelist)
             .Where(r => r.HrManagerId == Me && r.Interview.Application.JobPosting.CompanyId != null &&
                 _db.CompanyMembers.Any(m => m.UserId == Me && m.IsActive &&
                     m.Company.IsActive && m.CompanyId == r.Interview.Application.JobPosting.CompanyId))
             .OrderByDescending(r => r.SubmittedAt).ToListAsync();
-        return Ok(rows.Select(r => new {
+        var candidateIds = rows.Select(r => r.Interview.Application.UserId).Distinct().ToList();
+        var profiles = await _db.JobSeekerProfiles.AsNoTracking().Where(p => candidateIds.Contains(p.UserId))
+            .ToDictionaryAsync(p => p.UserId);
+        var skills = (await _db.JobSeekerSkills.AsNoTracking().Include(s => s.Skill)
+            .Where(s => candidateIds.Contains(s.UserId)).ToListAsync())
+            .GroupBy(s => s.UserId).ToDictionary(g => g.Key,
+                g => g.OrderByDescending(s => s.ProficiencyLevel)
+                    .Select(s => new { s.Skill.Name, s.ProficiencyLevel }).ToList());
+        return Ok(rows.Select(r => {
+            profiles.TryGetValue(r.Interview.Application.UserId, out var profile);
+            skills.TryGetValue(r.Interview.Application.UserId, out var candidateSkills);
+            return new {
             r.Id, r.InterviewId, r.Interview.ApplicationId,
             Candidate = r.Interview.Application.User.FullName,
+            CandidateEmail = r.Interview.Application.User.Email,
+            CandidatePhone = r.Interview.Application.User.PhoneNumber,
+            profile?.Headline, CandidateLocation = profile?.Location, profile?.Bio,
+            profile?.LinkedInUrl, profile?.GitHubUrl, profile?.PortfolioUrl,
+            Skills = candidateSkills ?? [],
             Job = r.Interview.Application.JobPosting.Title,
-            Panelist = r.Panelist.FullName, r.Selected, r.Rationale, r.SubmittedAt
-        }));
+            JobLocation = r.Interview.Application.JobPosting.Location,
+            EmploymentType = r.Interview.Application.JobPosting.EmploymentType.ToString(),
+            WorkMode = r.Interview.Application.JobPosting.WorkMode.ToString(),
+            JobDescription = r.Interview.Application.JobPosting.Description,
+            r.Interview.Application.JobPosting.Requirements,
+            Panelist = r.Panelist.FullName, r.Selected, r.Rationale, r.SubmittedAt,
+            InterviewedAt = r.Interview.ScheduledAt,
+            DesiredSalary = r.Interview.Feedback?.DesiredSalary,
+            DesiredSalaryCurrency = r.Interview.Feedback?.DesiredSalaryCurrency,
+            InterviewComments = r.Interview.Feedback?.Comments,
+            TechnicalSkills = r.Interview.Feedback?.TechnicalSkills,
+            ProblemSolving = r.Interview.Feedback?.ProblemSolving,
+            Communication = r.Interview.Feedback?.Communication,
+            CultureFit = r.Interview.Feedback?.CultureFit
+        }; }));
     }
 }

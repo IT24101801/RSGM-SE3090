@@ -5,7 +5,8 @@ namespace RSGM.Api.Services;
 
 public interface IEmailService
 {
-    Task SendAsync(string recipient, string subject, string message, CancellationToken cancellationToken = default);
+    Task SendAsync(string recipient, string subject, string message,
+        CancellationToken cancellationToken = default, string? replyTo = null);
 }
 
 public sealed class SmtpEmailService : IEmailService
@@ -20,7 +21,7 @@ public sealed class SmtpEmailService : IEmailService
     }
 
     public async Task SendAsync(string recipient, string subject, string message,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, string? replyTo = null)
     {
         if (!_configuration.GetValue<bool>("Email:Enabled") || string.IsNullOrWhiteSpace(recipient))
             return;
@@ -36,6 +37,8 @@ public sealed class SmtpEmailService : IEmailService
             }
 
             using var mail = new MailMessage(sender, recipient, subject, message) { IsBodyHtml = false };
+            if (!string.IsNullOrWhiteSpace(replyTo))
+                mail.ReplyToList.Add(new MailAddress(replyTo));
             using var client = new SmtpClient(host, _configuration.GetValue("Email:SmtpPort", 587))
             {
                 EnableSsl = _configuration.GetValue("Email:UseSsl", true)
