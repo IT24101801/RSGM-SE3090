@@ -490,6 +490,15 @@ namespace RSGM.Api.Migrations
                     b.Property<int>("CultureFit")
                         .HasColumnType("integer");
 
+                    b.Property<decimal>("DesiredSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("DesiredSalaryCurrency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
                     b.Property<Guid>("InterviewId")
                         .HasColumnType("uuid");
 
@@ -871,6 +880,10 @@ namespace RSGM.Api.Migrations
                     b.Property<Guid>("ApplicationId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CandidateDeclineReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -891,6 +904,9 @@ namespace RSGM.Api.Migrations
                         .HasColumnType("character varying(1000)");
 
                     b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("RespondedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("ReviewedByUserId")
@@ -1044,7 +1060,7 @@ namespace RSGM.Api.Migrations
                     b.ToTable("Skills");
                 });
 
-            modelBuilder.Entity("RSGM.Api.Models.Entities.UserAvailability", b =>
+            modelBuilder.Entity("RSGM.Api.Models.Entities.UserBusyTime", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1053,15 +1069,24 @@ namespace RSGM.Api.Migrations
                     b.Property<DateTime>("EndsAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<DateTime>("StartsAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId", "StartsAt")
+                    b.HasIndex("UserId", "StartsAt", "EndsAt")
                         .IsUnique();
 
                     b.ToTable("UserAvailabilities");
@@ -1534,7 +1559,7 @@ namespace RSGM.Api.Migrations
                     b.Navigation("Dispatch");
                 });
 
-            modelBuilder.Entity("RSGM.Api.Models.Entities.UserAvailability", b =>
+            modelBuilder.Entity("RSGM.Api.Models.Entities.UserBusyTime", b =>
                 {
                     b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "User")
                         .WithMany()
