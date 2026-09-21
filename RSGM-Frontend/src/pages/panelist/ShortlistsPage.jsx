@@ -31,7 +31,7 @@ export default function ShortlistsPage() {
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   }
   return <div><p className="text-xs font-semibold uppercase text-amber-600">Hiring panelist</p><h1 className="mt-3 text-3xl font-semibold">Ranked shortlists</h1>
-    <p className="mt-2 text-sm text-neutral-500">Select a candidate and choose a free office-hour slot. Busy meetings and existing company interviews are removed automatically.</p>
+    <p className="mt-2 text-sm text-neutral-500">Select a candidate and choose a free weekday slot between 9:00 AM and 5:00 PM. Recruiter, panelist and HR busy times plus existing company interviews are removed automatically.</p>
     <Link className="mt-3 inline-block text-sm font-semibold text-amber-700" to="/panelist/schedule">Manage your busy schedule →</Link>
     {error && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     <div className="mt-7 space-y-5">{jobs.length === 0 && <p className="rounded-2xl bg-white p-5 text-neutral-500">No shortlists assigned yet.</p>}

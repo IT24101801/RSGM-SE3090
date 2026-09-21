@@ -20,6 +20,11 @@ export default function AvailabilityPage() {
   async function submit(e) {
     e.preventDefault(); setBusy(true); setError("");
     try {
+      const start = new Date(form.startsAt); const end = new Date(form.endsAt);
+      const weekday = start.getDay() >= 1 && start.getDay() <= 5;
+      const minutes = (date) => date.getHours() * 60 + date.getMinutes();
+      if (!weekday || start.toDateString() !== end.toDateString() || minutes(start) < 540 || minutes(end) > 1020 || end <= start)
+        throw new Error("Busy times must be on one weekday between 9:00 AM and 5:00 PM.");
       await addBusyTime({
         title: form.title.trim(), description: form.description.trim() || null,
         startsAt: new Date(form.startsAt).toISOString(), endsAt: new Date(form.endsAt).toISOString(),
@@ -39,7 +44,7 @@ export default function AvailabilityPage() {
   return <div className="space-y-6">
     <div><p className={`text-xs font-semibold uppercase tracking-wider ${accent}`}>Interview planning</p>
       <h1 className="mt-3 text-3xl font-semibold">My schedule</h1>
-      <p className="mt-2 text-sm text-neutral-500">Add meetings and other times when you cannot attend an interview. All other office-hour times are treated as available automatically.</p></div>
+      <p className="mt-2 text-sm text-neutral-500">Add meetings and other unavailable periods during weekday interview hours, 9:00 AM–5:00 PM. All remaining times are treated as available automatically.</p></div>
     {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     <form onSubmit={submit} className="grid gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm sm:grid-cols-2">
       <label className="text-sm font-medium sm:col-span-2">Meeting or event name<input required maxLength={150} value={form.title} onChange={update("title")} placeholder="Weekly team meeting" className="mt-2 block w-full rounded-xl border border-neutral-200 px-3 py-2.5" /></label>

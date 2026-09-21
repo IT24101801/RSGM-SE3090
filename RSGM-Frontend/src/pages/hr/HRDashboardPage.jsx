@@ -1,68 +1,49 @@
-import { Link } from "react-router-dom";
-import {
-  ArrowUpRight, BadgeCheck, ClipboardList, Sparkles, Workflow,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { Building2, MapPin, Pencil, Save, Users } from "lucide-react";
+import { getHrCompanyProfile, saveHrCompanyProfile } from "../../services/hrCompanyProfileService";
 
-const STATS = [
-  { icon: ClipboardList, label: "Requisitions awaiting approval", value: 4, to: "/hr/requisitions" },
-  { icon: BadgeCheck, label: "Offers awaiting approval", value: 3, to: "/hr/offers" },
-  { icon: Workflow, label: "Active workflows", value: 11, to: "/hr/workflows" },
-];
+const empty = { currentEmployeeCount: 0, workingLocationCount: 1, organizationType: "Local", mainDepartments: "", majorSkillRequirements: "" };
 
-function HRDashboardPage() {
-  return (
-    <div>
-      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-600 text-[11px] font-semibold">
-        <Sparkles size={12} />
-        HR MANAGER WORKSPACE
-      </div>
+export default function HRDashboardPage() {
+  const [profile, setProfile] = useState(null);
+  const [form, setForm] = useState(empty);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState("");
 
-      <h1 className="mt-4 text-3xl sm:text-4xl font-semibold tracking-tight">
-        Approvals & oversight
-      </h1>
+  useEffect(() => {
+    getHrCompanyProfile().then((data) => {
+      setProfile(data);
+      setForm({ currentEmployeeCount: data.currentEmployeeCount, workingLocationCount: data.workingLocationCount || 1,
+        organizationType: data.organizationType || "Local", mainDepartments: data.mainDepartments || "",
+        majorSkillRequirements: data.majorSkillRequirements || "" });
+      setEditing(!data.isConfigured);
+    }).catch((e) => setError(e.message)).finally(() => setBusy(false));
+  }, []);
 
-      <p className="mt-2 text-neutral-500">
-        Review pending requisitions and offers, and keep an eye on recruitment health.
-      </p>
+  const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
-      <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {STATS.map((s) => (
-          <Link
-            key={s.label}
-            to={s.to}
-            className="group relative overflow-hidden rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30 p-6 hover:-translate-y-0.5 transition"
-          >
-            <div className="flex items-center justify-between">
-              <div className="w-11 h-11 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                <s.icon size={20} className="text-emerald-600" />
-              </div>
-              <ArrowUpRight size={16} className="text-neutral-300 group-hover:text-neutral-500 transition" />
-            </div>
-            <p className="mt-4 text-xs text-neutral-400">{s.label}</p>
-            <p className="mt-1 text-2xl font-semibold tracking-tight">{s.value}</p>
-          </Link>
-        ))}
-      </div>
+  async function submit(event) {
+    event.preventDefault(); setBusy(true); setError(""); setSaved("");
+    try {
+      const result = await saveHrCompanyProfile({ ...form, currentEmployeeCount: Number(form.currentEmployeeCount), workingLocationCount: Number(form.workingLocationCount) });
+      setProfile(result); setEditing(false); setSaved("Company information saved.");
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  }
 
-      <div className="mt-8 rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30 p-6">
-        <h2 className="text-lg font-semibold tracking-tight">Needs your attention</h2>
-        <ul className="mt-4 space-y-3 text-sm text-neutral-600">
-          <li className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Requisition "Senior Frontend Engineer" pending your approval since Sep 10
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Offer to Marcus Tan (Product Designer) awaiting sign-off
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Candidate matching workflow for Backend Engineer flagged low completion rate
-          </li>
-        </ul>
-      </div>
-    </div>
-  );
+  if (busy && !profile) return <p className="text-sm text-neutral-500">Loading company dashboard…</p>;
+  const stats = profile ? [
+    { label: "Current employees", value: profile.currentEmployeeCount, icon: Users },
+    { label: "Working locations", value: profile.workingLocationCount, icon: MapPin },
+    { label: "Organization type", value: profile.organizationType || "Not set", icon: Building2 },
+  ] : [];
+
+  return <div className="space-y-7">
+    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">HR manager workspace</p><h1 className="mt-3 text-3xl font-semibold">{profile?.name || "Company dashboard"}</h1><p className="mt-2 text-sm text-neutral-500">Maintain the company’s workforce information and recruitment needs.</p></div>{profile?.isConfigured && !editing && <button onClick={() => setEditing(true)} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold"><Pencil size={15} /> Edit profile</button>}</div>
+    {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+    {saved && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{saved}</p>}
+    {!editing && profile && <><div className="grid gap-4 sm:grid-cols-3">{stats.map((item) => <article key={item.label} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"><item.icon size={20} className="text-emerald-600" /><p className="mt-4 text-xs text-neutral-500">{item.label}</p><p className="mt-1 text-2xl font-semibold">{item.value}</p></article>)}</div><div className="grid gap-4 lg:grid-cols-2"><article className="rounded-2xl border border-neutral-200 bg-white p-5"><h2 className="font-semibold">Main departments</h2><p className="mt-3 whitespace-pre-wrap text-sm text-neutral-600">{profile.mainDepartments}</p></article><article className="rounded-2xl border border-neutral-200 bg-white p-5"><h2 className="font-semibold">Major skill requirements</h2><p className="mt-3 whitespace-pre-wrap text-sm text-neutral-600">{profile.majorSkillRequirements}</p></article></div><p className="text-xs text-neutral-400">The employee count increases automatically when a jobseeker accepts an approved offer.</p></>}
+    {editing && <form onSubmit={submit} className="grid gap-4 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm sm:grid-cols-2"><div className="sm:col-span-2"><h2 className="text-lg font-semibold">{profile?.isConfigured ? "Edit company information" : "Complete company information"}</h2><p className="mt-1 text-sm text-neutral-500">This information powers your HR dashboard.</p></div><label className="text-sm font-medium">Current number of employees<input required min="0" max="10000000" type="number" value={form.currentEmployeeCount} onChange={update("currentEmployeeCount")} className="mt-2 block w-full rounded-xl border border-neutral-200 px-3 py-2.5" /></label><label className="text-sm font-medium">Number of working locations<input required min="1" max="100000" type="number" value={form.workingLocationCount} onChange={update("workingLocationCount")} className="mt-2 block w-full rounded-xl border border-neutral-200 px-3 py-2.5" /></label><label className="text-sm font-medium sm:col-span-2">Organization type<select value={form.organizationType} onChange={update("organizationType")} className="mt-2 block w-full rounded-xl border border-neutral-200 px-3 py-2.5"><option>Local</option><option>International</option></select></label><label className="text-sm font-medium sm:col-span-2">Main departments<textarea required maxLength={2000} rows={4} value={form.mainDepartments} onChange={update("mainDepartments")} placeholder="Engineering, Finance, Sales, Human Resources…" className="mt-2 block w-full rounded-xl border border-neutral-200 px-3 py-2.5" /></label><label className="text-sm font-medium sm:col-span-2">Major skills required by the company<textarea required maxLength={2000} rows={4} value={form.majorSkillRequirements} onChange={update("majorSkillRequirements")} placeholder="Software engineering, project management, financial analysis…" className="mt-2 block w-full rounded-xl border border-neutral-200 px-3 py-2.5" /></label><div className="flex gap-3 sm:col-span-2"><button disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"><Save size={16} /> Save company information</button>{profile?.isConfigured && <button type="button" onClick={() => setEditing(false)} className="rounded-xl border border-neutral-200 px-5 py-2.5 text-sm font-semibold">Cancel</button>}</div></form>}
+  </div>;
 }
-
-export default HRDashboardPage;
