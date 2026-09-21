@@ -44,7 +44,7 @@ export default function MyInterviewsPage() {
     try {
       const slots = await getAvailableSlots(i.jobPostingId, i.hrManagerId);
       const choices = slots.filter((slot) => slot !== i.scheduledAt);
-      if (!choices.length) { setError("No other shared slots are available. Ask everyone to add matching availability."); return; }
+      if (!choices.length) { setError("No other free office-hour slots are available. Check each participant's busy schedule."); return; }
       const details = choices.map((slot, index) => `${index + 1}. ${new Date(slot).toLocaleString()}`).join("\n");
       const choice = Number(window.prompt(`Select a new shared slot by number:\n${details}`));
       if (choice >= 1 && choice <= choices.length) await act(() => changeInterviewTime(i.id, choices[choice - 1]));
@@ -96,14 +96,16 @@ function FeedbackDialog({ interview, busy, onClose, onSubmit }) {
   const [ratings, setRatings] = useState(Object.fromEntries(criteria.map(([key]) => [key, prior?.[key] || 0])));
   const [recommendation, setRecommendation] = useState(prior?.recommendation || "");
   const [comments, setComments] = useState(prior?.comments || "");
+  const [desiredSalary, setDesiredSalary] = useState(prior?.desiredSalary || "");
+  const [desiredSalaryCurrency, setDesiredSalaryCurrency] = useState(prior?.desiredSalaryCurrency || "LKR");
   const [error, setError] = useState("");
 
   function save(e) {
     e.preventDefault();
-    if (criteria.some(([key]) => ratings[key] < 1) || !recommendation) {
-      setError("Rate every criterion and choose a recommendation."); return;
+    if (criteria.some(([key]) => ratings[key] < 1) || !recommendation || Number(desiredSalary) <= 0 || desiredSalaryCurrency.trim().length !== 3) {
+      setError("Rate every criterion, choose a recommendation, and record the candidate's expected salary."); return;
     }
-    onSubmit({ ...ratings, recommendation, comments });
+    onSubmit({ ...ratings, recommendation, comments, desiredSalary: Number(desiredSalary), desiredSalaryCurrency: desiredSalaryCurrency.trim().toUpperCase() });
   }
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 p-4 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
     <div role="dialog" aria-modal="true" aria-label="Interview feedback" className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl sm:p-8">
@@ -116,6 +118,8 @@ function FeedbackDialog({ interview, busy, onClose, onSubmit }) {
           {[1, 2, 3, 4, 5].map((score) => <button type="button" key={score} aria-label={`${label}: ${score} out of 5`} onClick={() => setRatings((old) => ({ ...old, [key]: score }))}><Star size={25} className={score <= ratings[key] ? "fill-amber-400 text-amber-400" : "text-neutral-200"} /></button>)}
         </div></div>)}
         <div><p className="mb-2 text-sm font-medium">Recommendation</p><div className="grid grid-cols-2 gap-2">{recommendations.map((value) => <button type="button" key={value} onClick={() => setRecommendation(value)} className={`rounded-xl border px-2 py-2 text-sm ${recommendation === value ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-200 text-neutral-600"}`}>{value}</button>)}</div></div>
+        <div className="grid grid-cols-[1fr_110px] gap-3"><label className="block text-sm font-medium">Candidate's expected salary<input required min="0.01" step="0.01" type="number" value={desiredSalary} onChange={(e) => setDesiredSalary(e.target.value)} className="mt-2 w-full rounded-xl border border-neutral-200 p-3 text-sm" /></label><label className="block text-sm font-medium">Currency<input required minLength={3} maxLength={3} value={desiredSalaryCurrency} onChange={(e) => setDesiredSalaryCurrency(e.target.value)} className="mt-2 w-full rounded-xl border border-neutral-200 p-3 text-sm uppercase" /></label></div>
+        <p className="rounded-xl bg-blue-50 p-3 text-xs text-blue-700">Submitting feedback sends the expected salary to the recruiter as a notification.</p>
         <label className="block text-sm font-medium">Comments<textarea className="mt-2 w-full rounded-xl border border-neutral-200 p-3 text-sm outline-none focus:border-amber-400" rows={3} maxLength={2000} value={comments} onChange={(e) => setComments(e.target.value)} /></label>
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         <button type="submit" disabled={busy} className="w-full rounded-xl bg-neutral-900 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Submit feedback"}</button>

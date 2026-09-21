@@ -1,1 +1,17 @@
 @import "tailwindcss";
+@keyframes bell-shake {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(14deg); }
+  40% { transform: rotate(-14deg); }
+  60% { transform: rotate(9deg); }
+  80% { transform: rotate(-9deg); }
+}
+
+.animate-bell-shake {
+  transform-origin: 50% 10%;
+  animation: bell-shake 0.6s ease-in-out 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-bell-shake { animation: none; }
+}

@@ -39,6 +39,7 @@ import JobSeekerDashboardPage from "../pages/jobseeker/JobSeekerDashboardPage";
 import ProfilePage from "../pages/jobseeker/ProfilePage";
 import BrowseJobsPage from "../pages/jobseeker/BrowseJobsPage";
 import MyApplicationsPage from "../pages/jobseeker/MyApplicationsPage";
+import MyOffersPage from "../pages/jobseeker/MyOffersPage";
 import NotificationsPage from "../pages/common/NotificationsPage";
 
 import PanelistLayout from "../layouts/PanelistLayout";
@@ -73,6 +74,7 @@ function AppRoutes() {
         <Route path="workflows" element={<AdminWorkflowsPage />} />
         <Route path="stats" element={<AdminStatsPage />} />
         <Route path="settings" element={<AdminSettingsPage />} />
+        <Route path="notifications" element={<NotificationsPage role="admin" />} />
       </Route>
 
       {/* ================= RECRUITER ================= */}
@@ -90,8 +92,10 @@ function AppRoutes() {
         <Route path="applications" element={<ApplicationsPage />} />
         <Route path="matching" element={<CandidateMatchingPage />} />
         <Route path="shortlists" element={<ShortlistsPage />} />
-        <Route path="availability" element={<AvailabilityPage />} />
+        <Route path="schedule" element={<AvailabilityPage />} />
+        <Route path="availability" element={<Navigate to="/recruiter/schedule" replace />} />
         <Route path="interviews" element={<InterviewsPage />} />
+        <Route path="notifications" element={<NotificationsPage role="recruiter" />} />
       </Route>
 
       {/* ================= HR MANAGER ================= */}
@@ -107,9 +111,11 @@ function AppRoutes() {
         <Route path="requisitions" element={<RequisitionApprovalsPage />} />
         <Route path="offers" element={<OfferApprovalsPage />} />
         <Route path="recommendations" element={<RecommendationsPage />} />
-        <Route path="availability" element={<AvailabilityPage />} />
+        <Route path="schedule" element={<AvailabilityPage />} />
+        <Route path="availability" element={<Navigate to="/hr/schedule" replace />} />
         <Route path="workflows" element={<WorkflowMonitoringPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="notifications" element={<NotificationsPage role="hr" />} />
       </Route>
 
       {/* ================= JOB SEEKER ================= */}
@@ -126,6 +132,7 @@ function AppRoutes() {
         <Route path="browse" element={<BrowseJobsPage />} />
         <Route path="applications" element={<MyApplicationsPage />} />
         <Route path="interviews" element={<JobSeekerInterviewsPage />} />
+        <Route path="offers" element={<MyOffersPage />} />
         <Route path="notifications" element={<NotificationsPage role="jobseeker" />} />
       </Route>
 
@@ -141,7 +148,8 @@ function AppRoutes() {
         <Route index element={<PanelistDashboardPage />} />
         <Route path="interviews" element={<MyInterviewsPage />} />
         <Route path="shortlists" element={<PanelistShortlistsPage />} />
-        <Route path="availability" element={<AvailabilityPage />} />
+        <Route path="schedule" element={<AvailabilityPage />} />
+        <Route path="availability" element={<Navigate to="/panelist/schedule" replace />} />
         <Route path="notifications" element={<NotificationsPage role="panelist" />} />
       </Route>
 

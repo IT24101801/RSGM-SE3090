@@ -17,9 +17,9 @@ export const sendShortlist = (jobId, panelistId) => call(`/recruiter/jobs/${jobI
 export const getPanelistShortlists = () => call("/panelist/shortlists");
 export const getHrManagers = (jobId) => call(`/panelist/jobs/${jobId}/hr-managers`);
 export const getAvailableSlots = (jobId, hrManagerId) => call(`/panelist/jobs/${jobId}/slots?hrManagerId=${encodeURIComponent(hrManagerId)}`);
-export const getAvailability = () => call("/availability");
-export const addAvailability = (startsAt) => call("/availability", "POST", { startsAt });
-export const deleteAvailability = (id) => call(`/availability/${id}`, "DELETE");
+export const getBusyTimes = () => call("/busy-times");
+export const addBusyTime = (details) => call("/busy-times", "POST", details);
+export const deleteBusyTime = (id) => call(`/busy-times/${id}`, "DELETE");
 export const proposeInterview = (details) => call("/panelist/interviews", "POST", details);
 export const getCandidateInterviews = () => call("/jobseeker/interviews");
 export const confirmInterview = (id) => call(`/jobseeker/interviews/${id}/confirm`, "POST");

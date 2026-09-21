@@ -7,6 +7,7 @@ import {
   LogOut,
   Menu,
   Shield,
+  BadgeCheck,
   User,
   X,
 } from "lucide-react";
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { to: "/jobs/profile", label: "My Profile", icon: User },
   { to: "/jobs/browse", label: "Browse Jobs", icon: Briefcase },
   { to: "/jobs/interviews", label: "My Interviews", icon: FileStack },
+  { to: "/jobs/offers", label: "My Offers", icon: BadgeCheck },
   { to: "/jobs/applications", label: "My Applications", icon: FileStack },
 ];
 

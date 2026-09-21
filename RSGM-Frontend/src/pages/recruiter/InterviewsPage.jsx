@@ -70,6 +70,7 @@ export default function InterviewsPage() {
             <p className="font-semibold">{i.feedback.recommendation}</p>
             <p>Technical {i.feedback.technicalSkills}/5 · Problem solving {i.feedback.problemSolving}/5 · Communication {i.feedback.communication}/5 · Culture fit {i.feedback.cultureFit}/5</p>
             {i.feedback.comments && <p className="mt-2">{i.feedback.comments}</p>}
+            <p className="mt-2 font-semibold text-blue-700">Expected salary: {i.feedback.desiredSalaryCurrency} {Number(i.feedback.desiredSalary).toLocaleString()}</p>
           </div>}
           {recommendations.find((r) => r.interviewId === i.id) && <p className="mt-3 rounded-xl bg-blue-50 p-3 text-sm text-blue-700">Panelist: {recommendations.find((r) => r.interviewId === i.id).selected ? "Recommended" : "Not recommended"} · {recommendations.find((r) => r.interviewId === i.id).rationale}</p>}
           {offer?.rejectionReason && <p className="mt-3 text-sm text-red-600">HR feedback: {offer.rejectionReason}</p>}

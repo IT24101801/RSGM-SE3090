@@ -50,3 +50,6 @@ export const withdrawOffer = (id) => call(`/recruiter/offers/${id}/withdraw`, "P
 export const getHrOffers = () => call("/hr/offers");
 export const approveOffer = (id) => call(`/hr/offers/${id}/approve`, "POST");
 export const rejectOffer = (id, reason) => call(`/hr/offers/${id}/reject`, "POST", { reason });
+export const getJobSeekerOffers = () => call("/jobseeker/offers");
+export const acceptOffer = (id) => call(`/jobseeker/offers/${id}/accept`, "POST");
+export const declineOffer = (id, reason) => call(`/jobseeker/offers/${id}/decline`, "POST", { reason });

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import Brand from "../components/common/Brand";
+import NotificationsNavLink from "../components/common/NotificationsNavLink";
 import {
   getCurrentUser,
   logout,
@@ -53,7 +54,7 @@ const NAV_ITEMS = [
     label: "Shortlists",
     icon: Users,
   },
-  { to: "/recruiter/availability", label: "Availability", icon: CalendarClock },
+  { to: "/recruiter/schedule", label: "My Schedule", icon: CalendarClock },
   {
     to: "/recruiter/interviews",
     label: "Interviews",
@@ -102,6 +103,7 @@ function RecruiterLayout() {
                 {...item}
               />
             ))}
+            <NotificationsNavLink to="/recruiter/notifications" accent="blue" />
           </nav>
 
           {/* USER INFORMATION */}
@@ -176,6 +178,7 @@ function RecruiterLayout() {
                     }
                   />
                 ))}
+                <NotificationsNavLink to="/recruiter/notifications" accent="blue" onClick={() => setMobileOpen(false)} />
               </nav>
 
               <div className="px-4 py-5 border-t border-neutral-200">
