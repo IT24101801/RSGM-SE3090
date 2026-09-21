@@ -595,8 +595,13 @@ public class HiringWorkflowController : ControllerBase
     public async Task<IActionResult> JobSeekerOffers()
     {
         var rows = await _db.Offers.AsNoTracking()
-            .Where(o => o.Application.UserId == UserId &&
-                o.Status is OfferStatus.Approved or OfferStatus.Accepted or OfferStatus.Declined)
+            .Where(o =>
+    o.Application.UserId == UserId &&
+    (
+        o.Status == OfferStatus.Approved ||
+        o.Status == OfferStatus.Accepted ||
+        o.Status == OfferStatus.Declined
+    ))
             .Include(o => o.Application).ThenInclude(a => a.JobPosting)
             .ThenInclude(j => j.CompanyEntity)
             .OrderByDescending(o => o.ReviewedAt).ToListAsync();
