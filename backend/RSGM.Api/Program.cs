@@ -256,6 +256,9 @@ builder.Services.AddScoped<AdminCompanyService>();
 
 builder.Services.AddScoped<RecruiterJobPostingService>();
 
+builder.Services.AddScoped<JobRequisitionService>();
+
+builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 
 
 
@@ -350,10 +353,8 @@ await CompanySeeder.SeedAsync(
 await CompanyBackfillSeeder.SeedAsync(
     app.Services);
 
-await JobPostingSeeder.SeedAsync(
-    app.Services);
-await CompanySeeder.SeedAsync(
-    app.Services);
+// Job postings now require HR approval; do not seed published sample jobs.
+
 
 
 // ======================================================

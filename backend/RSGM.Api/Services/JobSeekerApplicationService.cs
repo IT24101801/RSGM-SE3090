@@ -95,8 +95,32 @@ public class JobSeekerApplicationService
             return false;
         }
 
+        var jobId = application.JobPostingId;
         application.Status = ApplicationStatus.Withdrawn;
+        application.ShortlistRank = null;
         application.WithdrawnAt = DateTime.UtcNow;
+
+        // A withdrawn candidate must not remain in an active interview or offer queue.
+        var futureInterviews = await _context.Interviews
+            .Where(i => i.ApplicationId == applicationId &&
+                i.Status != InterviewStatus.Cancelled && i.ScheduledAt > DateTime.UtcNow)
+            .ToListAsync();
+        foreach (var interview in futureInterviews)
+            interview.Status = InterviewStatus.Cancelled;
+
+        var activeOffer = await _context.Offers
+            .FirstOrDefaultAsync(o => o.ApplicationId == applicationId &&
+                o.Status != OfferStatus.Withdrawn);
+        if (activeOffer != null)
+            activeOffer.Status = OfferStatus.Withdrawn;
+
+        var remaining = await _context.Applications
+            .Where(a => a.JobPostingId == jobId && a.Status == ApplicationStatus.Shortlisted)
+            .OrderBy(a => a.ShortlistRank)
+            .ThenBy(a => a.AppliedAt)
+            .ToListAsync();
+        for (var i = 0; i < remaining.Count; i++)
+            remaining[i].ShortlistRank = i + 1;
 
         await _context.SaveChangesAsync();
 

@@ -45,6 +45,11 @@ public class JobPosting
 
     public Guid? CreatedByUserId { get; set; }
 
+    // Nullable for existing jobs created before the approval workflow.
+    public Guid? JobRequisitionId { get; set; }
+
+    public JobRequisition? JobRequisition { get; set; }
+
     public string Location { get; set; } = string.Empty;
 
     public EmploymentType EmploymentType { get; set; }

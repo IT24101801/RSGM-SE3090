@@ -7,17 +7,21 @@ import {
   LogOut,
   Menu,
   Shield,
+  BadgeCheck,
   User,
   X,
 } from "lucide-react";
 
 import Brand from "../components/common/Brand";
+import NotificationsNavLink from "../components/common/NotificationsNavLink";
 import { getCurrentUser, logout } from "../services/authService";
 
 const NAV_ITEMS = [
   { to: "/jobs", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/jobs/profile", label: "My Profile", icon: User },
   { to: "/jobs/browse", label: "Browse Jobs", icon: Briefcase },
+  { to: "/jobs/interviews", label: "My Interviews", icon: FileStack },
+  { to: "/jobs/offers", label: "My Offers", icon: BadgeCheck },
   { to: "/jobs/applications", label: "My Applications", icon: FileStack },
 ];
 
@@ -48,6 +52,7 @@ function JobSeekerLayout() {
             {NAV_ITEMS.map((item) => (
               <SidebarLink key={item.to} {...item} />
             ))}
+            <NotificationsNavLink to="/jobs/notifications" />
           </nav>
 
           <div className="px-4 py-5 border-t border-neutral-200/70">
@@ -86,6 +91,7 @@ function JobSeekerLayout() {
                 {NAV_ITEMS.map((item) => (
                   <SidebarLink key={item.to} {...item} onClick={() => setMobileOpen(false)} />
                 ))}
+                <NotificationsNavLink to="/jobs/notifications" onClick={() => setMobileOpen(false)} />
               </nav>
 
               <div className="px-4 py-5 border-t border-neutral-200">

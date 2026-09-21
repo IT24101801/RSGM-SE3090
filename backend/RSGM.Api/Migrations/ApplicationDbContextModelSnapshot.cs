@@ -164,6 +164,9 @@ namespace RSGM.Api.Migrations
                     b.Property<Guid>("JobPostingId")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("ShortlistRank")
+                        .HasColumnType("integer");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -261,6 +264,44 @@ namespace RSGM.Api.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("RSGM.Api.Models.Entities.CandidateRecommendation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("HrManagerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("InterviewId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PanelistId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Rationale")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("Selected")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HrManagerId");
+
+                    b.HasIndex("InterviewId")
+                        .IsUnique();
+
+                    b.HasIndex("PanelistId");
+
+                    b.ToTable("CandidateRecommendations");
+                });
+
             modelBuilder.Entity("RSGM.Api.Models.Entities.Company", b =>
                 {
                     b.Property<Guid>("Id")
@@ -270,6 +311,9 @@ namespace RSGM.Api.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("CurrentEmployeeCount")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
@@ -277,9 +321,20 @@ namespace RSGM.Api.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime?>("HrProfileCompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("LogoUrl")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<string>("MainDepartments")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("MajorSkillRequirements")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -291,12 +346,19 @@ namespace RSGM.Api.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<string>("OrganizationType")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Website")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
+
+                    b.Property<int>("WorkingLocationCount")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -384,6 +446,105 @@ namespace RSGM.Api.Migrations
                     b.ToTable("EducationRecords");
                 });
 
+            modelBuilder.Entity("RSGM.Api.Models.Entities.Interview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApplicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("HrManagerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("LocationOrLink")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("PanelistId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RecruiterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ScheduledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationId");
+
+                    b.HasIndex("HrManagerId");
+
+                    b.HasIndex("RecruiterId");
+
+                    b.HasIndex("PanelistId", "ScheduledAt");
+
+                    b.ToTable("Interviews");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.InterviewFeedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Comments")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("Communication")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CultureFit")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("DesiredSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("DesiredSalaryCurrency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<Guid>("InterviewId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ProblemSolving")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Recommendation")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("TechnicalSkills")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InterviewId")
+                        .IsUnique();
+
+                    b.ToTable("InterviewFeedbacks");
+                });
+
             modelBuilder.Entity("RSGM.Api.Models.Entities.JobPosting", b =>
                 {
                     b.Property<Guid>("Id")
@@ -420,6 +581,9 @@ namespace RSGM.Api.Migrations
 
                     b.Property<int>("ExperienceLevel")
                         .HasColumnType("integer");
+
+                    b.Property<Guid?>("JobRequisitionId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Location")
                         .IsRequired()
@@ -467,6 +631,9 @@ namespace RSGM.Api.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
+                    b.HasIndex("JobRequisitionId")
+                        .IsUnique();
+
                     b.ToTable("JobPostings");
                 });
 
@@ -496,6 +663,115 @@ namespace RSGM.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("JobPostingSkills");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.JobRequisition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("Department")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)");
+
+                    b.Property<int>("EmploymentType")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ExperienceLevel")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Headcount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("HrFeedback")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Justification")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Location")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<decimal?>("MaxSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int?>("MinExperienceYears")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("MinSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("PositionTitle")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid>("RecruiterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Requirements")
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)");
+
+                    b.Property<string>("Responsibilities")
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("WorkMode")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("RecruiterId");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("JobRequisitions");
                 });
 
             modelBuilder.Entity("RSGM.Api.Models.Entities.JobSeekerCv", b =>
@@ -616,6 +892,158 @@ namespace RSGM.Api.Migrations
                     b.ToTable("JobSeekerSkills");
                 });
 
+            modelBuilder.Entity("RSGM.Api.Models.Entities.Offer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApplicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CandidateDeclineReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("RecruiterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("RespondedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Salary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationId")
+                        .IsUnique();
+
+                    b.HasIndex("RecruiterId");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.ToTable("Offers");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.OfferReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Decision")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("HrUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OfferId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HrUserId");
+
+                    b.HasIndex("OfferId");
+
+                    b.ToTable("OfferReviews");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.ShortlistDispatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("JobPostingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PanelistId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RecruiterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("JobPostingId")
+                        .IsUnique();
+
+                    b.HasIndex("PanelistId");
+
+                    b.HasIndex("RecruiterId");
+
+                    b.ToTable("ShortlistDispatches");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.ShortlistDispatchCandidate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApplicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DispatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Rank")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationId");
+
+                    b.HasIndex("DispatchId", "ApplicationId")
+                        .IsUnique();
+
+                    b.ToTable("ShortlistDispatchCandidates");
+                });
+
             modelBuilder.Entity("RSGM.Api.Models.Entities.Skill", b =>
                 {
                     b.Property<Guid>("Id")
@@ -651,6 +1079,83 @@ namespace RSGM.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Skills");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.UserBusyTime", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "StartsAt", "EndsAt")
+                        .IsUnique();
+
+                    b.ToTable("UserAvailabilities");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.UserNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("InterviewId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Link")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1200)
+                        .HasColumnType("character varying(1200)");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RecipientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecipientId", "CreatedAt");
+
+                    b.HasIndex("RecipientId", "ReadAt");
+
+                    b.ToTable("UserNotifications");
                 });
 
             modelBuilder.Entity("RSGM.Api.Models.Entities.WorkExperience", b =>
@@ -772,6 +1277,33 @@ namespace RSGM.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("RSGM.Api.Models.Entities.CandidateRecommendation", b =>
+                {
+                    b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "HrManager")
+                        .WithMany()
+                        .HasForeignKey("HrManagerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RSGM.Api.Models.Entities.Interview", "Interview")
+                        .WithMany()
+                        .HasForeignKey("InterviewId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "Panelist")
+                        .WithMany()
+                        .HasForeignKey("PanelistId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("HrManager");
+
+                    b.Navigation("Interview");
+
+                    b.Navigation("Panelist");
+                });
+
             modelBuilder.Entity("RSGM.Api.Models.Entities.CompanyMember", b =>
                 {
                     b.HasOne("RSGM.Api.Models.Entities.Company", "Company")
@@ -802,6 +1334,51 @@ namespace RSGM.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("RSGM.Api.Models.Entities.Interview", b =>
+                {
+                    b.HasOne("RSGM.Api.Models.Entities.Application", "Application")
+                        .WithMany()
+                        .HasForeignKey("ApplicationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "HrManager")
+                        .WithMany()
+                        .HasForeignKey("HrManagerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "Panelist")
+                        .WithMany()
+                        .HasForeignKey("PanelistId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "Recruiter")
+                        .WithMany()
+                        .HasForeignKey("RecruiterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Application");
+
+                    b.Navigation("HrManager");
+
+                    b.Navigation("Panelist");
+
+                    b.Navigation("Recruiter");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.InterviewFeedback", b =>
+                {
+                    b.HasOne("RSGM.Api.Models.Entities.Interview", "Interview")
+                        .WithOne("Feedback")
+                        .HasForeignKey("RSGM.Api.Models.Entities.InterviewFeedback", "InterviewId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Interview");
+                });
+
             modelBuilder.Entity("RSGM.Api.Models.Entities.JobPosting", b =>
                 {
                     b.HasOne("RSGM.Api.Models.Entities.Company", "CompanyEntity")
@@ -814,9 +1391,16 @@ namespace RSGM.Api.Migrations
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("RSGM.Api.Models.Entities.JobRequisition", "JobRequisition")
+                        .WithMany()
+                        .HasForeignKey("JobRequisitionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("CompanyEntity");
 
                     b.Navigation("CreatedByUser");
+
+                    b.Navigation("JobRequisition");
                 });
 
             modelBuilder.Entity("RSGM.Api.Models.Entities.JobPostingSkill", b =>
@@ -836,6 +1420,32 @@ namespace RSGM.Api.Migrations
                     b.Navigation("JobPosting");
 
                     b.Navigation("Skill");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.JobRequisition", b =>
+                {
+                    b.HasOne("RSGM.Api.Models.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "Recruiter")
+                        .WithMany()
+                        .HasForeignKey("RecruiterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "ReviewedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Recruiter");
+
+                    b.Navigation("ReviewedByUser");
                 });
 
             modelBuilder.Entity("RSGM.Api.Models.Entities.JobSeekerCv", b =>
@@ -879,6 +1489,119 @@ namespace RSGM.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("RSGM.Api.Models.Entities.Offer", b =>
+                {
+                    b.HasOne("RSGM.Api.Models.Entities.Application", "Application")
+                        .WithMany()
+                        .HasForeignKey("ApplicationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "Recruiter")
+                        .WithMany()
+                        .HasForeignKey("RecruiterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "ReviewedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Application");
+
+                    b.Navigation("Recruiter");
+
+                    b.Navigation("ReviewedByUser");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.OfferReview", b =>
+                {
+                    b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "HrUser")
+                        .WithMany()
+                        .HasForeignKey("HrUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RSGM.Api.Models.Entities.Offer", "Offer")
+                        .WithMany()
+                        .HasForeignKey("OfferId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("HrUser");
+
+                    b.Navigation("Offer");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.ShortlistDispatch", b =>
+                {
+                    b.HasOne("RSGM.Api.Models.Entities.JobPosting", "JobPosting")
+                        .WithMany()
+                        .HasForeignKey("JobPostingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "Panelist")
+                        .WithMany()
+                        .HasForeignKey("PanelistId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "Recruiter")
+                        .WithMany()
+                        .HasForeignKey("RecruiterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("JobPosting");
+
+                    b.Navigation("Panelist");
+
+                    b.Navigation("Recruiter");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.ShortlistDispatchCandidate", b =>
+                {
+                    b.HasOne("RSGM.Api.Models.Entities.Application", "Application")
+                        .WithMany()
+                        .HasForeignKey("ApplicationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RSGM.Api.Models.Entities.ShortlistDispatch", "Dispatch")
+                        .WithMany("Candidates")
+                        .HasForeignKey("DispatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Application");
+
+                    b.Navigation("Dispatch");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.UserBusyTime", b =>
+                {
+                    b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.UserNotification", b =>
+                {
+                    b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "Recipient")
+                        .WithMany()
+                        .HasForeignKey("RecipientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Recipient");
+                });
+
             modelBuilder.Entity("RSGM.Api.Models.Entities.WorkExperience", b =>
                 {
                     b.HasOne("RSGM.Api.Models.Entities.ApplicationUser", "User")
@@ -904,11 +1627,21 @@ namespace RSGM.Api.Migrations
                     b.Navigation("Members");
                 });
 
+            modelBuilder.Entity("RSGM.Api.Models.Entities.Interview", b =>
+                {
+                    b.Navigation("Feedback");
+                });
+
             modelBuilder.Entity("RSGM.Api.Models.Entities.JobPosting", b =>
                 {
                     b.Navigation("Applications");
 
                     b.Navigation("RequiredSkills");
+                });
+
+            modelBuilder.Entity("RSGM.Api.Models.Entities.ShortlistDispatch", b =>
+                {
+                    b.Navigation("Candidates");
                 });
 #pragma warning restore 612, 618
         }

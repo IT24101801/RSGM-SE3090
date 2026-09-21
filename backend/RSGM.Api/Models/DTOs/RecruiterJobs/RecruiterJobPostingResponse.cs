@@ -3,6 +3,7 @@ namespace RSGM.Api.Models.DTOs.RecruiterJobs;
 public class RecruiterJobPostingResponse
 {
     public Guid Id { get; set; }
+    public Guid? JobRequisitionId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string Company { get; set; } = string.Empty;
     public string? CompanyLogoUrl { get; set; }

@@ -14,6 +14,18 @@ public class Company
 
     public string? LogoUrl { get; set; }
 
+    public int CurrentEmployeeCount { get; set; }
+
+    public int WorkingLocationCount { get; set; }
+
+    public string? OrganizationType { get; set; }
+
+    public string? MainDepartments { get; set; }
+
+    public string? MajorSkillRequirements { get; set; }
+
+    public DateTime? HrProfileCompletedAt { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

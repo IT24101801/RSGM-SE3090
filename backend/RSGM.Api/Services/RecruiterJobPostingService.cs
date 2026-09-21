@@ -1,3 +1,4 @@
+using Npgsql;
 using Microsoft.EntityFrameworkCore;
 using RSGM.Api.Data;
 using RSGM.Api.Models.DTOs.RecruiterJobs;
@@ -20,7 +21,11 @@ public enum RecruiterJobResult
     InvalidSalary,
     InvalidDeadline,
     ClosedJob,
-    HasApplications
+    HasApplications,
+    RequisitionRequired,
+    RequisitionNotApproved,
+    RequisitionAlreadyUsed,
+    RequisitionMismatch
 }
 
 public class RecruiterJobPostingService
@@ -74,6 +79,18 @@ public class RecruiterJobPostingService
         if (!membership.Company.IsActive)
             return (RecruiterJobResult.CompanyInactive, null);
 
+        if (request.JobRequisitionId == Guid.Empty)
+            return (RecruiterJobResult.RequisitionRequired, null);
+
+        var requisition = await _context.JobRequisitions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == request.JobRequisitionId &&
+                item.RecruiterId == recruiterId && item.CompanyId == membership.CompanyId);
+        if (requisition == null || requisition.Status != JobRequisitionStatus.Approved)
+            return (RecruiterJobResult.RequisitionNotApproved, null);
+        if (await _context.JobPostings.AnyAsync(item => item.JobRequisitionId == requisition.Id))
+            return (RecruiterJobResult.RequisitionAlreadyUsed, null);
+
         var skills = await GetValidSkillsAsync(request.SkillIds);
         if (skills == null)
             return (RecruiterJobResult.InvalidSkills, null);
@@ -91,12 +108,17 @@ public class RecruiterJobPostingService
         if (validation != RecruiterJobResult.Success)
             return (validation, null);
 
+        if (!MatchesApproval(request.Title, request.Location, details, request.MinSalary,
+                request.MaxSalary, requisition))
+            return (RecruiterJobResult.RequisitionMismatch, null);
+
         var job = new JobPosting
         {
             Title = request.Title.Trim(),
             Company = membership.Company.Name,
             CompanyId = membership.CompanyId,
             CreatedByUserId = recruiterId,
+            JobRequisitionId = requisition.Id,
             Location = request.Location.Trim(),
             EmploymentType = details.EmploymentType,
             WorkMode = details.WorkMode,
@@ -118,7 +140,16 @@ public class RecruiterJobPostingService
         }
 
         _context.JobPostings.Add(job);
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+            { SqlState: PostgresErrorCodes.UniqueViolation,
+              ConstraintName: "IX_JobPostings_JobRequisitionId" })
+        {
+            return (RecruiterJobResult.RequisitionAlreadyUsed, null);
+        }
 
         return await GetMineByIdAsync(recruiterId, job.Id);
     }
@@ -157,6 +188,17 @@ public class RecruiterJobPostingService
             out var details);
         if (validation != RecruiterJobResult.Success)
             return (validation, null);
+
+        if (job.JobRequisitionId.HasValue)
+        {
+            var approved = await _context.JobRequisitions.AsNoTracking()
+                .FirstOrDefaultAsync(item => item.Id == job.JobRequisitionId.Value &&
+                    item.RecruiterId == recruiterId && item.CompanyId == membership.CompanyId &&
+                    item.Status == JobRequisitionStatus.Approved);
+            if (approved == null || !MatchesApproval(request.Title, request.Location, details,
+                    request.MinSalary, request.MaxSalary, approved))
+                return (RecruiterJobResult.RequisitionMismatch, null);
+        }
 
         job.Title = request.Title.Trim();
         job.Location = request.Location.Trim();
@@ -209,6 +251,15 @@ public class RecruiterJobPostingService
             (!job.ApplicationDeadline.HasValue ||
              job.ApplicationDeadline.Value < DateOnly.FromDateTime(DateTime.UtcNow)))
             return (RecruiterJobResult.InvalidDeadline, null);
+
+        if (status == JobPostingStatus.Published &&
+            (!job.JobRequisitionId.HasValue ||
+             !await _context.JobRequisitions.AnyAsync(item =>
+                 item.Id == job.JobRequisitionId.Value &&
+                 item.RecruiterId == recruiterId &&
+                 item.CompanyId == membership.CompanyId &&
+                 item.Status == JobRequisitionStatus.Approved)))
+            return (RecruiterJobResult.RequisitionNotApproved, null);
 
         job.Status = status;
         job.UpdatedAt = DateTime.UtcNow;
@@ -273,6 +324,7 @@ public class RecruiterJobPostingService
         return new RecruiterJobPostingResponse
         {
             Id = job.Id,
+            JobRequisitionId = job.JobRequisitionId,
             Title = job.Title,
             Company = job.CompanyEntity?.Name ?? job.Company,
             CompanyLogoUrl = job.CompanyEntity?.LogoUrl,
@@ -302,6 +354,24 @@ public class RecruiterJobPostingService
         };
     }
 
+    // HR-approved position, location, employment, experience and salary are fixed.
+    // The recruiter may still write the public description, deadline and required skills.
+    private static bool MatchesApproval(string title, string location,
+        ValidatedJobDetails details, decimal? minSalary, decimal? maxSalary,
+        JobRequisition approved)
+    {
+        return string.Equals(title.Trim(), approved.PositionTitle.Trim(), StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(location.Trim(), approved.Location.Trim(), StringComparison.OrdinalIgnoreCase) &&
+            details.EmploymentType == approved.EmploymentType &&
+            details.WorkMode == approved.WorkMode &&
+            details.ExperienceLevel == approved.ExperienceLevel &&
+            details.MinExperienceYears == (approved.EmploymentType == EmploymentType.Internship
+                ? null : approved.MinExperienceYears) &&
+            minSalary == approved.MinSalary && maxSalary == approved.MaxSalary &&
+            string.Equals(details.Currency, minSalary.HasValue || maxSalary.HasValue
+                ? approved.Currency.Trim().ToUpperInvariant() : null, StringComparison.Ordinal);
+    }
+
     private static RecruiterJobResult ValidateJobDetails(
         string employmentTypeValue,
         string workModeValue,
@@ -326,7 +396,8 @@ public class RecruiterJobPostingService
             return RecruiterJobResult.InvalidExperienceLevel;
 
         var isInternship = employmentType == EmploymentType.Internship;
-        if (!isInternship && minExperienceYears == null)
+        if (!isInternship && experienceLevel != ExperienceLevel.Entry &&
+            minExperienceYears == null)
             return RecruiterJobResult.InvalidExperience;
 
         if (minSalary.HasValue && maxSalary.HasValue && minSalary > maxSalary)

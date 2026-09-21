@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import Brand from "../components/common/Brand";
+import NotificationsNavLink from "../components/common/NotificationsNavLink";
 import {
   getCurrentUser,
   logout,
@@ -98,6 +99,7 @@ function AdminLayout() {
             {NAV_ITEMS.map((item) => (
               <SidebarLink key={item.to} {...item} />
             ))}
+            <NotificationsNavLink to="/admin/notifications" />
           </nav>
 
           <div className="px-4 py-5 border-t border-neutral-200/70">
@@ -150,6 +152,7 @@ function AdminLayout() {
                     onClick={() => setMobileOpen(false)}
                   />
                 ))}
+                <NotificationsNavLink to="/admin/notifications" onClick={() => setMobileOpen(false)} />
               </nav>
 
               <div className="px-4 py-5 border-t border-neutral-200">

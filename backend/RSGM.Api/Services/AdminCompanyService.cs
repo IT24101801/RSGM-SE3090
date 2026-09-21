@@ -15,6 +15,7 @@ public enum CompanyOperationResult
     CompanyInactive,
     UserNotFound,
     InvalidMemberRole,
+    StaffRequiresCompany,
     HasRelatedData
 }
 
@@ -204,6 +205,14 @@ public class AdminCompanyService
 
         if (membership == null)
             return CompanyOperationResult.NotFound;
+
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user != null)
+        {
+            var roles = await _userManager.GetRolesAsync(user);
+            if (roles.Any(role => CompanyRoles.Contains(role)))
+                return CompanyOperationResult.StaffRequiresCompany;
+        }
 
         _context.CompanyMembers.Remove(membership);
         await _context.SaveChangesAsync();
