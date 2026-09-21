@@ -23,32 +23,34 @@ function AdminDashboardPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    loadDashboard();
-  }, []);
+    let cancelled = false;
 
-  const loadDashboard = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      const data = await getAdminDashboardStats();
-
-      setStats({
-        totalUsers: data.totalUsers ?? 0,
-        activeUsers: data.activeUsers ?? 0,
-        totalCompanies: data.totalCompanies ?? 0,
-        totalJobPostings: data.totalJobPostings ?? 0,
-        totalApplications: data.totalApplications ?? 0,
-      });
-    } catch (err) {
-      setError(
-        err.message ||
-          "Failed to load dashboard statistics."
-      );
-    } finally {
-      setLoading(false);
+    async function loadInitialDashboard() {
+      try {
+        const data = await getAdminDashboardStats();
+        if (!cancelled) {
+          setStats({
+            totalUsers: data.totalUsers ?? 0,
+            activeUsers: data.activeUsers ?? 0,
+            totalCompanies: data.totalCompanies ?? 0,
+            totalJobPostings: data.totalJobPostings ?? 0,
+            totalApplications: data.totalApplications ?? 0,
+          });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message || "Failed to load dashboard statistics.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     }
-  };
+
+    loadInitialDashboard();
+    return () => { cancelled = true; };
+  }, []);
 
   const cards = [
     {

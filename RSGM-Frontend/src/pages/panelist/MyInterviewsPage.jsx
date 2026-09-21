@@ -25,7 +25,29 @@ export default function MyInterviewsPage() {
   const [rationale, setRationale] = useState("");
   const [busy, setBusy] = useState(false);
   const refresh = useCallback(async () => { const [sessions, recommendations] = await Promise.all([getPanelistInterviews(), getPanelistRecommendations()]); setInterviews(sessions); setDecisions(recommendations); }, []);
-  useEffect(() => { refresh().catch((e) => setError(e.message)).finally(() => setLoading(false)); }, [refresh]);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInitialInterviews() {
+      try {
+        const [sessions, recommendationItems] = await Promise.all([
+          getPanelistInterviews(),
+          getPanelistRecommendations(),
+        ]);
+        if (!cancelled) {
+          setInterviews(sessions);
+          setDecisions(recommendationItems);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadInitialInterviews();
+    return () => { cancelled = true; };
+  }, []);
 
   async function submit(id, feedback) {
     setBusy(true); setError("");

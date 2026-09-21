@@ -23,7 +23,31 @@ export default function InterviewsPage() {
     const [sessions, drafts, decisions] = await Promise.all([getRecruiterInterviews(), getRecruiterOffers(), getRecruiterRecommendations()]);
     setInterviews(sessions); setOffers(drafts); setRecommendations(decisions);
   }, []);
-  useEffect(() => { refresh().catch((e) => setError(e.message)).finally(() => setLoading(false)); }, [refresh]);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInitialInterviews() {
+      try {
+        const [sessions, drafts, decisions] = await Promise.all([
+          getRecruiterInterviews(),
+          getRecruiterOffers(),
+          getRecruiterRecommendations(),
+        ]);
+        if (!cancelled) {
+          setInterviews(sessions);
+          setOffers(drafts);
+          setRecommendations(decisions);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadInitialInterviews();
+    return () => { cancelled = true; };
+  }, []);
 
   async function run(action) {
     setBusy(true); setError("");

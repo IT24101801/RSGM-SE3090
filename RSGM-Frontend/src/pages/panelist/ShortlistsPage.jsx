@@ -20,8 +20,14 @@ export default function ShortlistsPage() {
     getHrManagers(selection.jobId).then((people) => { setManagers(people); setHrId(people[0]?.id || ""); }).catch((e) => setError(e.message));
   }, [selection]);
   useEffect(() => {
-    setSlots([]); setStart("");
-    if (selection && hrId) getAvailableSlots(selection.jobId, hrId).then(setSlots).catch((e) => setError(e.message));
+    if (!selection || !hrId) return;
+
+    let cancelled = false;
+    getAvailableSlots(selection.jobId, hrId)
+      .then((data) => { if (!cancelled) setSlots(data); })
+      .catch((e) => { if (!cancelled) setError(e.message); });
+
+    return () => { cancelled = true; };
   }, [selection, hrId]);
   async function submit(e) {
     e.preventDefault(); setBusy(true); setError("");
@@ -36,11 +42,11 @@ export default function ShortlistsPage() {
     {error && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     <div className="mt-7 space-y-5">{jobs.length === 0 && <p className="rounded-2xl bg-white p-5 text-neutral-500">No shortlists assigned yet.</p>}
       {jobs.map((job) => <section key={job.jobPostingId} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"><h2 className="text-lg font-semibold">{job.jobTitle}</h2><p className="mb-4 text-xs text-neutral-500">Sent by {job.recruiter} · {new Date(job.submittedAt).toLocaleString()}</p>
-        {job.candidates.map((candidate) => <div key={candidate.id} className="flex flex-wrap items-center gap-3 border-t border-neutral-100 py-3"><span className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">#{candidate.shortlistRank}</span><div className="flex-1"><p className="font-semibold">{candidate.candidate}</p><p className="text-xs text-neutral-500">{candidate.email} · {candidate.status}</p></div>{candidate.status === "Shortlisted" && <button onClick={() => setSelection({ jobId: job.jobPostingId, candidate })} className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white">Propose interview</button>}</div>)}
+        {job.candidates.map((candidate) => <div key={candidate.id} className="flex flex-wrap items-center gap-3 border-t border-neutral-100 py-3"><span className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">#{candidate.shortlistRank}</span><div className="flex-1"><p className="font-semibold">{candidate.candidate}</p><p className="text-xs text-neutral-500">{candidate.email} · {candidate.status}</p></div>{candidate.status === "Shortlisted" && <button onClick={() => { setSelection({ jobId: job.jobPostingId, candidate }); setSlots([]); setStart(""); }} className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white">Propose interview</button>}</div>)}
       </section>)}
     </div>
-    {selection && <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 p-4"><form onSubmit={submit} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 shadow-2xl"><div className="flex justify-between"><h2 className="text-lg font-semibold">Interview · {selection.candidate.candidate}</h2><button type="button" onClick={() => setSelection(null)} aria-label="Close">✕</button></div>
-      <label className="block text-sm font-medium">HR Manager<select required className="mt-2 w-full rounded-xl border border-neutral-200 p-3" value={hrId} onChange={(e) => setHrId(e.target.value)}>{managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
+    {selection && <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 p-4"><form onSubmit={submit} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 shadow-2xl"><div className="flex justify-between"><h2 className="text-lg font-semibold">Interview · {selection.candidate.candidate}</h2><button type="button" onClick={() => { setSelection(null); setSlots([]); setStart(""); }} aria-label="Close">✕</button></div>
+      <label className="block text-sm font-medium">HR Manager<select required className="mt-2 w-full rounded-xl border border-neutral-200 p-3" value={hrId} onChange={(e) => { setHrId(e.target.value); setSlots([]); setStart(""); }}>{managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
       <label className="block text-sm font-medium">Available one-hour slot<select required className="mt-2 w-full rounded-xl border border-neutral-200 p-3" value={start} onChange={(e) => setStart(e.target.value)}><option value="">Select a slot</option>{slots.map((iso) => <option key={iso} value={iso}>{new Date(iso).toLocaleString()}</option>)}</select></label>
       {!slots.length && <p className="text-sm text-amber-700">No free slots were found in the next 30 days.</p>}
       <label className="block text-sm font-medium">Mode<select className="mt-2 w-full rounded-xl border border-neutral-200 p-3" value={type} onChange={(e) => setType(e.target.value)}><option>Physical</option><option>Online</option></select></label>

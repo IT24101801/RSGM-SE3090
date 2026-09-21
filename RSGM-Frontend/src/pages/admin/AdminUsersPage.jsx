@@ -53,50 +53,37 @@ function AdminUsersPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   // =========================================================
   // LOAD USERS + COMPANIES
   // =========================================================
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError("");
+  useEffect(() => {
+    let cancelled = false;
 
-      const [
-        usersResponse,
-        companiesResponse,
-      ] = await Promise.all([
-        getAdminUsers(),
-        getAdminCompanies(),
-      ]);
-
-      const userItems = Array.isArray(
-        usersResponse
-      )
-        ? usersResponse
-        : usersResponse.items ?? [];
-
-      const companyItems = Array.isArray(
-        companiesResponse
-      )
-        ? companiesResponse
-        : companiesResponse.items ?? [];
-
-      setUsers(userItems);
-      setCompanies(companyItems);
-    } catch (requestError) {
-      setError(
-        requestError.message ||
-          "Unable to load users."
-      );
-    } finally {
-      setLoading(false);
+    async function loadInitialData() {
+      try {
+        const [usersResponse, companiesResponse] = await Promise.all([
+          getAdminUsers(),
+          getAdminCompanies(),
+        ]);
+        if (!cancelled) {
+          setUsers(Array.isArray(usersResponse) ? usersResponse : usersResponse.items ?? []);
+          setCompanies(Array.isArray(companiesResponse) ? companiesResponse : companiesResponse.items ?? []);
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setError(requestError.message || "Unable to load users.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     }
-  };
+
+    loadInitialData();
+    return () => { cancelled = true; };
+  }, []);
 
   // =========================================================
   // REPLACE ONE USER LOCALLY

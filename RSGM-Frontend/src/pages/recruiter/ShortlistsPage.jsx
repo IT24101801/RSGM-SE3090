@@ -4,7 +4,7 @@ import { getPanelists } from "../../services/hiringWorkflowService";
 import { getSentShortlists, sendShortlist } from "../../services/panelistWorkflowService";
 import {
   AlertCircle, ArrowDown, ArrowLeft, ArrowUp,
-  BriefcaseBusiness, CircleCheck, Loader2,
+  BriefcaseBusiness, Loader2,
   Medal, Sparkles, Star, Trash2, Users,
 } from "lucide-react";
 import {

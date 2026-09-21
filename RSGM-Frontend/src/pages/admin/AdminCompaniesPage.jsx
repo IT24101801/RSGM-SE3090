@@ -36,10 +36,6 @@ function AdminCompaniesPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  useEffect(() => {
-    loadCompanies();
-  }, []);
-
   const loadCompanies = async () => {
     try {
       setLoading(true);
@@ -61,6 +57,30 @@ function AdminCompaniesPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInitialCompanies() {
+      try {
+        const data = await getAdminCompanies();
+        if (!cancelled) {
+          setCompanies(Array.isArray(data) ? data : data.items ?? []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message || "Failed to load companies.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadInitialCompanies();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleChange = (event) => {
     const {

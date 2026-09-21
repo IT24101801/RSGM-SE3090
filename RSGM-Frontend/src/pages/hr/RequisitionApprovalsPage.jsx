@@ -8,7 +8,6 @@ import {
   FileText,
   MapPin,
   UserRound,
-  Users,
   XCircle,
 } from "lucide-react";
 
@@ -111,7 +110,27 @@ export default function RequisitionApprovalsPage() {
   }
 
   useEffect(() => {
-    load();
+    let cancelled = false;
+
+    async function loadInitialRequisitions() {
+      try {
+        const data = await getHrRequisitions();
+        if (!cancelled) {
+          setItems(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadInitialRequisitions();
+    return () => { cancelled = true; };
   }, []);
 
   async function handleApprove(id) {

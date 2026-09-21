@@ -28,40 +28,35 @@ function JobSeekerDashboardPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    loadDashboard();
-  }, []);
+    let cancelled = false;
 
-  const loadDashboard = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      const data =
-        await getJobSeekerDashboard();
-
-      setDashboard({
-        fullName:
-          data.fullName ?? "",
-        profileCompleteness:
-          data.profileCompleteness ?? 0,
-        totalApplications:
-          data.totalApplications ?? 0,
-        activeApplications:
-          data.activeApplications ?? 0,
-        shortlistedApplications:
-          data.shortlistedApplications ?? 0,
-        availableJobs:
-          data.availableJobs ?? 0,
-      });
-    } catch (err) {
-      setError(
-        err.message ||
-          "Failed to load dashboard."
-      );
-    } finally {
-      setLoading(false);
+    async function loadInitialDashboard() {
+      try {
+        const data = await getJobSeekerDashboard();
+        if (!cancelled) {
+          setDashboard({
+            fullName: data.fullName ?? "",
+            profileCompleteness: data.profileCompleteness ?? 0,
+            totalApplications: data.totalApplications ?? 0,
+            activeApplications: data.activeApplications ?? 0,
+            shortlistedApplications: data.shortlistedApplications ?? 0,
+            availableJobs: data.availableJobs ?? 0,
+          });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message || "Failed to load dashboard.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     }
-  };
+
+    loadInitialDashboard();
+    return () => { cancelled = true; };
+  }, []);
 
   const cards = [
     {
