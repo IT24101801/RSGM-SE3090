@@ -258,6 +258,8 @@ builder.Services.AddScoped<RecruiterJobPostingService>();
 
 builder.Services.AddScoped<JobRequisitionService>();
 
+builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+
 
 
 // ======================================================
