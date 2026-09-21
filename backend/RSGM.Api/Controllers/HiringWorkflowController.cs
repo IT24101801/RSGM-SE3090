@@ -14,10 +14,12 @@ public record ScheduleInterviewRequest(Guid ApplicationId, Guid PanelistId,
     DateTimeOffset ScheduledAt, string Type, string? LocationOrLink);
 public record RescheduleInterviewRequest(DateTimeOffset ScheduledAt);
 public record SaveFeedbackRequest(int TechnicalSkills, int ProblemSolving,
-    int Communication, int CultureFit, string Recommendation, string? Comments);
+    int Communication, int CultureFit, string Recommendation, string? Comments,
+    decimal DesiredSalary, string DesiredSalaryCurrency);
 public record SaveOfferRequest(Guid ApplicationId, decimal Salary, string Currency,
     DateOnly StartDate, string? Notes);
 public record RejectOfferRequest(string Reason);
+public record DeclineOfferRequest(string Reason);
 
 [ApiController]
 [Authorize]
@@ -28,14 +30,16 @@ public class HiringWorkflowController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _users;
     private readonly JobSeekerCvService _cvs;
+    private readonly IEmailService _email;
     private readonly TimeZoneInfo _officeTimeZone;
 
     public HiringWorkflowController(ApplicationDbContext db, UserManager<ApplicationUser> users,
-        JobSeekerCvService cvs, IConfiguration configuration)
+        JobSeekerCvService cvs, IEmailService email, IConfiguration configuration)
     {
         _db = db;
         _users = users;
         _cvs = cvs;
+        _email = email;
         _officeTimeZone = TimeZoneInfo.FindSystemTimeZoneById(
             configuration["Hiring:TimeZoneId"] ?? "Asia/Colombo");
     }
@@ -87,6 +91,14 @@ public class HiringWorkflowController : ControllerBase
     private Guid UserId => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
         ? id : Guid.Empty;
 
+    private void Notify(Guid recipientId, Guid relatedId, NotificationKind kind,
+        string title, string message, string link) =>
+        _db.UserNotifications.Add(new UserNotification
+        {
+            RecipientId = recipientId, InterviewId = relatedId, Kind = kind,
+            Title = title, Message = message, Link = link
+        });
+
     private IQueryable<Application> MyApplications => _db.Applications.Where(a =>
         a.JobPosting.CreatedByUserId == UserId && a.JobPosting.CompanyId != null &&
         a.JobPosting.CompanyEntity != null && a.JobPosting.CompanyEntity.IsActive &&
@@ -129,6 +141,7 @@ public class HiringWorkflowController : ControllerBase
             i.Feedback.TechnicalSkills, i.Feedback.ProblemSolving,
             i.Feedback.Communication, i.Feedback.CultureFit,
             i.Feedback.Recommendation, i.Feedback.Comments,
+            i.Feedback.DesiredSalary, i.Feedback.DesiredSalaryCurrency,
             i.Feedback.SubmittedAt
         }
     };
@@ -139,7 +152,7 @@ public class HiringWorkflowController : ControllerBase
         Job = o.Application.JobPosting.Title, o.Salary, o.Currency, o.StartDate,
         o.Notes, Status = o.Status.ToString(), o.RejectionReason, o.RecruiterId,
         SubmittedBy = o.Recruiter.FullName, o.SubmittedAt, o.ReviewedAt,
-        o.ReviewedByUserId, o.CreatedAt
+        o.ReviewedByUserId, o.RespondedAt, o.CandidateDeclineReason, o.CreatedAt
     };
 
     private IQueryable<Interview> InterviewsWithDetails(IQueryable<Interview> query) => query
@@ -379,9 +392,13 @@ public class HiringWorkflowController : ControllerBase
         var ratings = new[] { request.TechnicalSkills, request.ProblemSolving, request.Communication, request.CultureFit };
         if (ratings.Any(x => x is < 1 or > 5) ||
             !new[] { "Strong Hire", "Hire", "Leaning No", "No Hire" }.Contains(request.Recommendation) ||
-            request.Comments?.Length > 2000)
-            return BadRequest(new { message = "Rate all four criteria from 1 to 5 and choose a recommendation." });
+            request.Comments?.Length > 2000 || request.DesiredSalary <= 0 ||
+            string.IsNullOrWhiteSpace(request.DesiredSalaryCurrency) ||
+            request.DesiredSalaryCurrency.Trim().Length != 3)
+            return BadRequest(new { message = "Rate every criterion, choose a recommendation, and record the candidate's expected salary." });
         var interview = await _db.Interviews.Include(i => i.Feedback)
+            .Include(i => i.Application).ThenInclude(a => a.User)
+            .Include(i => i.Application).ThenInclude(a => a.JobPosting)
             .FirstOrDefaultAsync(i => i.Id == id && i.PanelistId == UserId &&
                 i.Application.JobPosting.CompanyId != null &&
                 _db.CompanyMembers.Any(m => m.UserId == UserId && m.IsActive && m.Company.IsActive &&
@@ -399,8 +416,14 @@ public class HiringWorkflowController : ControllerBase
         feedback.CultureFit = request.CultureFit;
         feedback.Recommendation = request.Recommendation;
         feedback.Comments = request.Comments?.Trim();
+        feedback.DesiredSalary = request.DesiredSalary;
+        feedback.DesiredSalaryCurrency = request.DesiredSalaryCurrency.Trim().ToUpperInvariant();
         feedback.SubmittedAt = DateTime.UtcNow;
         if (interview.Feedback == null) _db.InterviewFeedbacks.Add(feedback);
+        Notify(interview.RecruiterId, interview.Id, NotificationKind.SalaryExpectationSubmitted,
+            "Candidate salary expectation recorded",
+            $"{interview.Application.User.FullName} expects {feedback.DesiredSalaryCurrency} {feedback.DesiredSalary:N2} for {interview.Application.JobPosting.Title}.",
+            "/recruiter/interviews");
         await _db.SaveChangesAsync();
         return Ok(new { message = "Feedback saved." });
     }
@@ -454,7 +477,9 @@ public class HiringWorkflowController : ControllerBase
     [Authorize(Roles = AppRoles.Recruiter)]
     public async Task<IActionResult> SubmitOffer(Guid id)
     {
-        var offer = await MyOffers.Include(o => o.Application).FirstOrDefaultAsync(o => o.Id == id);
+        var offer = await MyOffers.Include(o => o.Application).ThenInclude(a => a.User)
+            .Include(o => o.Application).ThenInclude(a => a.JobPosting)
+            .FirstOrDefaultAsync(o => o.Id == id);
         if (offer == null) return NotFound();
         var hasFeedback = await _db.Interviews.AnyAsync(i => i.ApplicationId == offer.ApplicationId &&
             i.Status == InterviewStatus.Scheduled && i.ScheduledAt <= DateTime.UtcNow && i.Feedback != null &&
@@ -463,7 +488,22 @@ public class HiringWorkflowController : ControllerBase
             return Conflict(new { message = "A valid draft and completed interview feedback are required." });
         offer.Status = OfferStatus.Submitted;
         offer.SubmittedAt = DateTime.UtcNow;
+        var hrIds = await _db.CompanyMembers
+            .Where(m => m.CompanyId == offer.Application.JobPosting.CompanyId && m.IsActive && m.User.IsActive)
+            .Where(m => _db.UserRoles.Any(ur => ur.UserId == m.UserId &&
+                _db.Roles.Any(r => r.Id == ur.RoleId && r.Name == AppRoles.HRManager)))
+            .Select(m => m.UserId).ToListAsync();
+        foreach (var hrId in hrIds)
+            Notify(hrId, offer.Id, NotificationKind.OfferSubmitted, "New offer requires approval",
+                $"An offer for {offer.Application.User.FullName} – {offer.Application.JobPosting.Title} requires your approval.",
+                "/hr/offers");
         await _db.SaveChangesAsync();
+        var hrEmails = await _db.Users.Where(u => hrIds.Contains(u.Id) && u.Email != null)
+            .Select(u => u.Email!).ToListAsync();
+        foreach (var email in hrEmails.Distinct())
+            await _email.SendAsync(email, "New offer requires approval",
+                $"An offer for {offer.Application.User.FullName} – {offer.Application.JobPosting.Title} requires your approval in RSGM.",
+                HttpContext.RequestAborted);
         return Ok(new { message = "Offer submitted to HR." });
     }
 
@@ -494,7 +534,9 @@ public class HiringWorkflowController : ControllerBase
     [Authorize(Roles = AppRoles.HRManager)]
     public async Task<IActionResult> ApproveOffer(Guid id)
     {
-        var offer = await CompanyOffers.Include(o => o.Application).FirstOrDefaultAsync(o => o.Id == id);
+        var offer = await CompanyOffers.Include(o => o.Application).ThenInclude(a => a.User)
+            .Include(o => o.Application).ThenInclude(a => a.JobPosting)
+            .FirstOrDefaultAsync(o => o.Id == id);
         if (offer == null) return NotFound();
         if (offer.Status != OfferStatus.Submitted || offer.Application.Status != ApplicationStatus.Interview ||
             !await _db.Interviews.AnyAsync(i => i.ApplicationId == offer.ApplicationId &&
@@ -507,7 +549,17 @@ public class HiringWorkflowController : ControllerBase
         offer.Application.Status = ApplicationStatus.Offer;
         _db.OfferReviews.Add(new OfferReview { OfferId = offer.Id, HrUserId = UserId,
             Decision = OfferStatus.Approved, ReviewedAt = offer.ReviewedAt.Value });
+        Notify(offer.RecruiterId, offer.Id, NotificationKind.OfferApproved, "Offer approved",
+            $"The offer for {offer.Application.User.FullName} has been approved by HR.",
+            "/recruiter/interviews");
+        Notify(offer.Application.UserId, offer.Id, NotificationKind.OfferReceived, "You received a job offer",
+            $"You received an offer for {offer.Application.JobPosting.Title}. Open My Offers to review it.",
+            "/jobs/offers");
         await _db.SaveChangesAsync();
+        await _email.SendAsync(offer.Application.User.Email ?? string.Empty,
+            $"Job offer: {offer.Application.JobPosting.Title}",
+            $"Your offer for {offer.Application.JobPosting.Title} has been approved. Sign in to RSGM and open My Offers to respond.",
+            HttpContext.RequestAborted);
         return Ok(new { message = "Offer approved." });
     }
 
@@ -517,7 +569,9 @@ public class HiringWorkflowController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Length > 1000)
             return BadRequest(new { message = "Give a reason of up to 1000 characters." });
-        var offer = await CompanyOffers.FirstOrDefaultAsync(o => o.Id == id);
+        var offer = await CompanyOffers.Include(o => o.Application).ThenInclude(a => a.User)
+            .Include(o => o.Application).ThenInclude(a => a.JobPosting)
+            .FirstOrDefaultAsync(o => o.Id == id);
         if (offer == null) return NotFound();
         if (offer.Status != OfferStatus.Submitted)
             return Conflict(new { message = "Only submitted offers can be rejected." });
@@ -528,8 +582,106 @@ public class HiringWorkflowController : ControllerBase
         _db.OfferReviews.Add(new OfferReview { OfferId = offer.Id, HrUserId = UserId,
             Decision = OfferStatus.Rejected, Reason = offer.RejectionReason,
             ReviewedAt = offer.ReviewedAt.Value });
+        Notify(offer.RecruiterId, offer.Id, NotificationKind.OfferRejected,
+            "Offer requires revision",
+            $"HR rejected the offer for {offer.Application.User.FullName}. Reason: {offer.RejectionReason}",
+            "/recruiter/interviews");
         await _db.SaveChangesAsync();
         return Ok(new { message = "Offer rejected." });
+    }
+
+    [HttpGet("jobseeker/offers")]
+    [Authorize(Roles = AppRoles.JobSeeker)]
+    public async Task<IActionResult> JobSeekerOffers()
+    {
+        var rows = await _db.Offers.AsNoTracking()
+            .Where(o => o.Application.UserId == UserId &&
+                o.Status is OfferStatus.Approved or OfferStatus.Accepted or OfferStatus.Declined)
+            .Include(o => o.Application).ThenInclude(a => a.JobPosting)
+            .ThenInclude(j => j.CompanyEntity)
+            .OrderByDescending(o => o.ReviewedAt).ToListAsync();
+        return Ok(rows.Select(o => new
+        {
+            o.Id, o.ApplicationId, Job = o.Application.JobPosting.Title,
+            Company = o.Application.JobPosting.CompanyEntity != null
+                ? o.Application.JobPosting.CompanyEntity.Name : o.Application.JobPosting.Company,
+            o.Salary, o.Currency, o.StartDate, o.Notes,
+            Status = o.Status.ToString(), o.ReviewedAt, o.RespondedAt,
+            o.CandidateDeclineReason
+        }));
+    }
+
+    [HttpPost("jobseeker/offers/{id:guid}/accept")]
+    [Authorize(Roles = AppRoles.JobSeeker)]
+    public async Task<IActionResult> AcceptOffer(Guid id)
+    {
+        var offer = await CandidateOffer(id);
+        if (offer == null) return NotFound();
+        if (offer.Status != OfferStatus.Approved)
+            return Conflict(new { message = "Only an approved offer awaiting your response can be accepted." });
+        offer.Status = OfferStatus.Accepted;
+        offer.RespondedAt = DateTime.UtcNow;
+        offer.Application.Status = ApplicationStatus.Hired;
+        await NotifyOfferResponse(offer, accepted: true, null);
+        await _db.SaveChangesAsync();
+        await SendOfferResponseEmails(offer, accepted: true);
+        return Ok(new { status = offer.Status.ToString(), offer.RespondedAt });
+    }
+
+    [HttpPost("jobseeker/offers/{id:guid}/decline")]
+    [Authorize(Roles = AppRoles.JobSeeker)]
+    public async Task<IActionResult> DeclineOffer(Guid id, DeclineOfferRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Length > 1000)
+            return BadRequest(new { message = "Give a reason of up to 1000 characters." });
+        var offer = await CandidateOffer(id);
+        if (offer == null) return NotFound();
+        if (offer.Status != OfferStatus.Approved)
+            return Conflict(new { message = "Only an approved offer awaiting your response can be declined." });
+        offer.Status = OfferStatus.Declined;
+        offer.RespondedAt = DateTime.UtcNow;
+        offer.CandidateDeclineReason = request.Reason.Trim();
+        offer.Application.Status = ApplicationStatus.OfferDeclined;
+        await NotifyOfferResponse(offer, accepted: false, offer.CandidateDeclineReason);
+        await _db.SaveChangesAsync();
+        await SendOfferResponseEmails(offer, accepted: false);
+        return Ok(new { status = offer.Status.ToString(), offer.RespondedAt });
+    }
+
+    private Task<Offer?> CandidateOffer(Guid id) => _db.Offers
+        .Include(o => o.Application).ThenInclude(a => a.User)
+        .Include(o => o.Application).ThenInclude(a => a.JobPosting)
+        .FirstOrDefaultAsync(o => o.Id == id && o.Application.UserId == UserId);
+
+    private async Task NotifyOfferResponse(Offer offer, bool accepted, string? reason)
+    {
+        var kind = accepted ? NotificationKind.OfferAccepted : NotificationKind.OfferDeclined;
+        var title = accepted ? "Offer accepted" : "Offer declined";
+        var message = $"{offer.Application.User.FullName} {(accepted ? "accepted" : "declined")} the " +
+            $"{offer.Application.JobPosting.Title} offer." +
+            (reason == null ? string.Empty : $" Reason: {reason}");
+        Notify(offer.RecruiterId, offer.Id, kind, title, message, "/recruiter/interviews");
+        var hrIds = await _db.CompanyMembers
+            .Where(m => m.CompanyId == offer.Application.JobPosting.CompanyId && m.IsActive && m.User.IsActive)
+            .Where(m => _db.UserRoles.Any(ur => ur.UserId == m.UserId &&
+                _db.Roles.Any(r => r.Id == ur.RoleId && r.Name == AppRoles.HRManager)))
+            .Select(m => m.UserId).ToListAsync();
+        foreach (var hrId in hrIds)
+            Notify(hrId, offer.Id, kind, title, message, "/hr/offers");
+    }
+
+    private async Task SendOfferResponseEmails(Offer offer, bool accepted)
+    {
+        var subject = $"Candidate {(accepted ? "accepted" : "declined")} offer";
+        var message = $"{offer.Application.User.FullName} {(accepted ? "accepted" : "declined")} the offer for {offer.Application.JobPosting.Title}.";
+        var recipients = await _db.Users.Where(u => u.Id == offer.RecruiterId ||
+                _db.CompanyMembers.Any(m => m.UserId == u.Id && m.IsActive &&
+                    m.CompanyId == offer.Application.JobPosting.CompanyId &&
+                    _db.UserRoles.Any(ur => ur.UserId == u.Id &&
+                        _db.Roles.Any(r => r.Id == ur.RoleId && r.Name == AppRoles.HRManager))))
+            .Select(u => u.Email).Where(email => email != null).ToListAsync();
+        foreach (var recipient in recipients.Distinct())
+            await _email.SendAsync(recipient!, subject, message, HttpContext.RequestAborted);
     }
 
     private async Task CompactRanks(Guid jobId)

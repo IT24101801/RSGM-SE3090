@@ -6,11 +6,14 @@ using Microsoft.EntityFrameworkCore;
 using RSGM.Api.Common;
 using RSGM.Api.Data;
 using RSGM.Api.Models.Entities;
+using RSGM.Api.Services;
 
 namespace RSGM.Api.Controllers;
 
 public record SendShortlistRequest(Guid PanelistId);
-public record AvailabilityRequest(DateTimeOffset StartsAt);
+public record BusyTimeRequest(string Title, DateTimeOffset StartsAt,
+    DateTimeOffset EndsAt, string? Description);
+public record InterviewTimeRequest(DateTimeOffset StartsAt);
 public record PanelistScheduleRequest(Guid ApplicationId, Guid HrManagerId,
     DateTimeOffset StartsAt, string Type, string? LocationOrLink);
 public record RequestNewTimeRequest(string Reason);
@@ -24,13 +27,15 @@ public class PanelistWorkflowController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _users;
     private readonly TimeZoneInfo _zone;
+    private readonly IEmailService _email;
     private const int SlotMinutes = 60;
 
     public PanelistWorkflowController(ApplicationDbContext db,
-        UserManager<ApplicationUser> users, IConfiguration config)
+        UserManager<ApplicationUser> users, IEmailService email, IConfiguration config)
     {
         _db = db;
         _users = users;
+        _email = email;
         _zone = TimeZoneInfo.FindSystemTimeZoneById(config["Hiring:TimeZoneId"] ?? "Asia/Colombo");
     }
 
@@ -145,63 +150,67 @@ public class PanelistWorkflowController : ControllerBase
         return Ok(staff);
     }
 
-    [HttpGet("availability")]
+    [HttpGet("busy-times")]
     [Authorize(Roles = AppRoles.Recruiter + "," + AppRoles.HiringPanelist + "," + AppRoles.HRManager)]
-    public async Task<IActionResult> MyAvailability() =>
-        Ok(await _db.UserAvailabilities.AsNoTracking()
+    public async Task<IActionResult> MyBusyTimes() =>
+        Ok(await _db.UserBusyTimes.AsNoTracking()
             .Where(a => a.UserId == Me && a.StartsAt >= DateTime.UtcNow)
-            .OrderBy(a => a.StartsAt).Select(a => new { a.Id, a.StartsAt, a.EndsAt })
+            .OrderBy(a => a.StartsAt)
+            .Select(a => new { a.Id, a.Title, a.Description, a.StartsAt, a.EndsAt })
             .ToListAsync());
 
-    [HttpPost("availability")]
+    [HttpPost("busy-times")]
     [Authorize(Roles = AppRoles.Recruiter + "," + AppRoles.HiringPanelist + "," + AppRoles.HRManager)]
-    public async Task<IActionResult> AddAvailability(AvailabilityRequest request)
+    public async Task<IActionResult> AddBusyTime(BusyTimeRequest request)
     {
-        if (!Allowed(request.StartsAt))
-            return BadRequest(new { message = "Choose a one-hour slot between 08:00 and 17:00 within the next 90 days." });
+        if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Length > 150 ||
+            request.Description?.Length > 500 || request.StartsAt <= DateTimeOffset.UtcNow ||
+            request.EndsAt <= request.StartsAt || request.EndsAt > DateTimeOffset.UtcNow.AddDays(365) ||
+            request.EndsAt - request.StartsAt > TimeSpan.FromDays(7))
+            return BadRequest(new { message = "Enter a title and a valid future start/end time." });
         if (!await _db.CompanyMembers.AnyAsync(m => m.UserId == Me && m.IsActive && m.Company.IsActive))
             return Forbid();
         var start = request.StartsAt.UtcDateTime;
-        if (await _db.UserAvailabilities.AnyAsync(a => a.UserId == Me && a.StartsAt == start))
-            return Conflict(new { message = "You already added that slot." });
-        var row = new UserAvailability { UserId = Me,
-            StartsAt = start, EndsAt = start.AddMinutes(SlotMinutes) };
-        _db.UserAvailabilities.Add(row);
+        var end = request.EndsAt.UtcDateTime;
+        if (await _db.UserBusyTimes.AnyAsync(a => a.UserId == Me &&
+                a.StartsAt < end && a.EndsAt > start))
+            return Conflict(new { message = "This busy time overlaps another event in your schedule." });
+        if (await _db.Interviews.AnyAsync(i => i.Status != InterviewStatus.Cancelled &&
+                i.ScheduledAt < end && i.ScheduledAt.AddMinutes(SlotMinutes) > start &&
+                (i.PanelistId == Me || i.RecruiterId == Me || i.HrManagerId == Me)))
+            return Conflict(new { message = "This time overlaps an existing interview." });
+        var row = new UserBusyTime { UserId = Me, Title = request.Title.Trim(),
+            Description = request.Description?.Trim(), StartsAt = start, EndsAt = end };
+        _db.UserBusyTimes.Add(row);
         await _db.SaveChangesAsync();
-        return Ok(new { row.Id, row.StartsAt, row.EndsAt });
+        return Ok(new { row.Id, row.Title, row.Description, row.StartsAt, row.EndsAt });
     }
 
-    [HttpDelete("availability/{id:guid}")]
+    [HttpDelete("busy-times/{id:guid}")]
     [Authorize(Roles = AppRoles.Recruiter + "," + AppRoles.HiringPanelist + "," + AppRoles.HRManager)]
-    public async Task<IActionResult> DeleteAvailability(Guid id)
+    public async Task<IActionResult> DeleteBusyTime(Guid id)
     {
-        var row = await _db.UserAvailabilities.FirstOrDefaultAsync(a => a.Id == id && a.UserId == Me);
+        var row = await _db.UserBusyTimes.FirstOrDefaultAsync(a => a.Id == id && a.UserId == Me);
         if (row == null) return NotFound();
-        if (await _db.Interviews.AnyAsync(i => i.Status != InterviewStatus.Cancelled &&
-            i.ScheduledAt == row.StartsAt && (i.PanelistId == Me ||
-                i.RecruiterId == Me || i.HrManagerId == Me)))
-            return Conflict(new { message = "This slot has an active interview." });
-        _db.UserAvailabilities.Remove(row);
+        _db.UserBusyTimes.Remove(row);
         await _db.SaveChangesAsync();
         return NoContent();
     }
 
-    private async Task<bool> SlotAvailable(Guid panelistId, Guid recruiterId, Guid hrId,
-        DateTime start, Guid? excludeInterviewId = null)
+    private async Task<bool> SlotAvailable(Guid companyId, Guid panelistId, Guid recruiterId,
+        Guid hrId, DateTime start, Guid? excludeInterviewId = null)
     {
         var end = start.AddMinutes(SlotMinutes);
-        foreach (var id in new[] { panelistId, recruiterId, hrId })
-        {
-            if (!await _db.UserAvailabilities.AnyAsync(a =>
-                a.UserId == id && a.StartsAt <= start && a.EndsAt >= end))
-                return false;
-        }
         var ids = new[] { panelistId, recruiterId, hrId };
+        if (await _db.UserBusyTimes.AnyAsync(b => ids.Contains(b.UserId) &&
+            b.StartsAt < end && b.EndsAt > start))
+            return false;
+
+        // A company cannot book two candidates into the same interview time, even with different staff.
         return !await _db.Interviews.AnyAsync(i => (!excludeInterviewId.HasValue || i.Id != excludeInterviewId.Value) &&
             i.Status != InterviewStatus.Cancelled &&
             i.ScheduledAt < end && i.ScheduledAt.AddMinutes(SlotMinutes) > start &&
-            (ids.Contains(i.PanelistId) || ids.Contains(i.RecruiterId) ||
-                (i.HrManagerId != null && ids.Contains(i.HrManagerId.Value))));
+            i.Application.JobPosting.CompanyId == companyId);
     }
 
     [HttpGet("panelist/jobs/{jobId:guid}/slots")]
@@ -213,15 +222,22 @@ public class PanelistWorkflowController : ControllerBase
         if (dispatch == null) return NotFound();
         if (!await IsStaffInCompany(hrManagerId, dispatch.JobPosting.CompanyId, AppRoles.HRManager))
             return BadRequest(new { message = "Choose an HR Manager from this company." });
-        var starts = await _db.UserAvailabilities.AsNoTracking()
-            .Where(a => a.UserId == Me && a.StartsAt > DateTime.UtcNow &&
-                a.StartsAt < DateTime.UtcNow.AddDays(90))
-            .OrderBy(a => a.StartsAt).Select(a => a.StartsAt).ToListAsync();
         var slots = new List<DateTime>();
-        foreach (var start in starts.Distinct())
-            if (InHours(new DateTimeOffset(start, TimeSpan.Zero), _zone) &&
-                await SlotAvailable(Me, dispatch.RecruiterId, hrManagerId, start))
-                slots.Add(start);
+        var localToday = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, _zone).Date;
+        for (var dayOffset = 0; dayOffset < 30 && slots.Count < 60; dayOffset++)
+        {
+            var date = localToday.AddDays(dayOffset);
+            if (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) continue;
+            for (var hour = 8; hour <= 16 && slots.Count < 60; hour++)
+            {
+                var local = DateTime.SpecifyKind(date.AddHours(hour), DateTimeKind.Unspecified);
+                var start = TimeZoneInfo.ConvertTimeToUtc(local, _zone);
+                if (start <= DateTime.UtcNow) continue;
+                if (await SlotAvailable(dispatch.JobPosting.CompanyId!.Value, Me,
+                    dispatch.RecruiterId, hrManagerId, start))
+                    slots.Add(start);
+            }
+        }
         return Ok(slots);
     }
 
@@ -250,8 +266,9 @@ public class PanelistWorkflowController : ControllerBase
             i.Status != InterviewStatus.Cancelled))
             return Conflict(new { message = "This applicant already has an active interview." });
         var start = request.StartsAt.UtcDateTime;
-        if (!await SlotAvailable(Me, dispatch.RecruiterId, request.HrManagerId, start))
-            return Conflict(new { message = "The recruiter, panelist, and HR Manager must all be available." });
+        if (!await SlotAvailable(application.JobPosting.CompanyId!.Value, Me,
+                dispatch.RecruiterId, request.HrManagerId, start))
+            return Conflict(new { message = "That time is busy or another candidate already has an interview then." });
         var interview = new Interview { ApplicationId = application.Id,
             RecruiterId = dispatch.RecruiterId, PanelistId = Me,
             HrManagerId = request.HrManagerId, ScheduledAt = start,
@@ -271,6 +288,10 @@ public class PanelistWorkflowController : ControllerBase
             $"An interview for {application.JobPosting.Title} is proposed for {when}.",
             "/hr/recommendations");
         await _db.SaveChangesAsync();
+        await _email.SendAsync(application.User.Email ?? string.Empty,
+            $"Interview proposed: {application.JobPosting.Title}",
+            $"Your interview is proposed for {when}. Sign in to RSGM to confirm or request a new time.",
+            HttpContext.RequestAborted);
         var rest = await _db.Applications.Where(a =>
             a.JobPostingId == application.JobPostingId && a.Status == ApplicationStatus.Shortlisted)
             .OrderBy(a => a.ShortlistRank).ToListAsync();
@@ -335,7 +356,7 @@ public class PanelistWorkflowController : ControllerBase
 
     [HttpPut("panelist/interviews/{id:guid}/new-time")]
     [Authorize(Roles = AppRoles.HiringPanelist)]
-    public async Task<IActionResult> ChangeTime(Guid id, AvailabilityRequest request)
+    public async Task<IActionResult> ChangeTime(Guid id, InterviewTimeRequest request)
     {
         var interview = await _db.Interviews.Include(i => i.Application)
             .ThenInclude(a => a.JobPosting)
@@ -348,7 +369,8 @@ public class PanelistWorkflowController : ControllerBase
             return Conflict(new { message = "Choose a future available office-hours slot." });
         var next = request.StartsAt.UtcDateTime;
         if (next == interview.ScheduledAt ||
-            !await SlotAvailable(Me, interview.RecruiterId, interview.HrManagerId.Value, next, id))
+            !await SlotAvailable(interview.Application.JobPosting.CompanyId!.Value, Me,
+                interview.RecruiterId, interview.HrManagerId.Value, next, id))
             return Conflict(new { message = "That time is unavailable." });
         var old = When(interview.ScheduledAt);
         interview.ScheduledAt = next;

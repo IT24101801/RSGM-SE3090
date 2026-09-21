@@ -59,7 +59,7 @@ public class ApplicationDbContext
     public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
     public DbSet<ShortlistDispatch> ShortlistDispatches => Set<ShortlistDispatch>();
     public DbSet<ShortlistDispatchCandidate> ShortlistDispatchCandidates => Set<ShortlistDispatchCandidate>();
-    public DbSet<UserAvailability> UserAvailabilities => Set<UserAvailability>();
+    public DbSet<UserBusyTime> UserBusyTimes => Set<UserBusyTime>();
     public DbSet<CandidateRecommendation> CandidateRecommendations => Set<CandidateRecommendation>();
 
     // ---------------------------------------------------------
@@ -460,6 +460,8 @@ public class ApplicationDbContext
             entity.HasIndex(x => x.InterviewId).IsUnique();
             entity.Property(x => x.Recommendation).HasMaxLength(30).IsRequired();
             entity.Property(x => x.Comments).HasMaxLength(2000);
+            entity.Property(x => x.DesiredSalary).HasPrecision(18, 2);
+            entity.Property(x => x.DesiredSalaryCurrency).HasMaxLength(3).IsRequired();
             entity.HasOne(x => x.Interview).WithOne(x => x.Feedback).HasForeignKey<InterviewFeedback>(x => x.InterviewId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -471,6 +473,7 @@ public class ApplicationDbContext
             entity.Property(x => x.Currency).HasMaxLength(3).IsRequired();
             entity.Property(x => x.Notes).HasMaxLength(2000);
             entity.Property(x => x.RejectionReason).HasMaxLength(1000);
+            entity.Property(x => x.CandidateDeclineReason).HasMaxLength(1000);
             entity.HasOne(x => x.Application).WithMany().HasForeignKey(x => x.ApplicationId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.Recruiter).WithMany().HasForeignKey(x => x.RecruiterId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.ReviewedByUser).WithMany().HasForeignKey(x => x.ReviewedByUserId).OnDelete(DeleteBehavior.Restrict);
@@ -517,10 +520,13 @@ public class ApplicationDbContext
                 .HasForeignKey(x => x.ApplicationId).OnDelete(DeleteBehavior.Restrict);
         });
 
-        builder.Entity<UserAvailability>(entity =>
+        builder.Entity<UserBusyTime>(entity =>
         {
+            entity.ToTable("UserAvailabilities");
             entity.HasKey(x => x.Id);
-            entity.HasIndex(x => new { x.UserId, x.StartsAt }).IsUnique();
+            entity.Property(x => x.Title).IsRequired().HasMaxLength(150);
+            entity.Property(x => x.Description).HasMaxLength(500);
+            entity.HasIndex(x => new { x.UserId, x.StartsAt, x.EndsAt }).IsUnique();
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
