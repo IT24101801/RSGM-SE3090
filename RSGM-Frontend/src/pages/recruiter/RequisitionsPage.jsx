@@ -112,7 +112,27 @@ export default function RequisitionsPage() {
   }
 
   useEffect(() => {
-    load();
+    let cancelled = false;
+
+    async function loadInitialRequisitions() {
+      try {
+        const data = await getMyRequisitions();
+        if (!cancelled) {
+          setItems(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadInitialRequisitions();
+    return () => { cancelled = true; };
   }, []);
 
   function updateField(name, value) {

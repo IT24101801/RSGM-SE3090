@@ -20,12 +20,36 @@ export default function NotificationsPage({ role }) {
   }, []);
 
   useEffect(() => {
-    refresh();
+    let cancelled = false;
+
+    async function loadNotifications() {
+      try {
+        const data = await getNotifications();
+        if (!cancelled) {
+          setItems(data);
+          setError("");
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e.message);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadNotifications();
     const timer = window.setInterval(() => {
-      if (!document.hidden) refresh();
+      if (!document.hidden) loadNotifications();
     }, 30000);
-    return () => window.clearInterval(timer);
-  }, [refresh]);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   async function open(item) {
     if (busy) return;

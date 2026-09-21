@@ -19,7 +19,29 @@ export default function OfferApprovalsPage() {
   const [reason, setReason] = useState("");
 
   const refresh = useCallback(async () => { setOffers(await getHrOffers()); }, []);
-  useEffect(() => { refresh().catch((e) => setError(e.message)).finally(() => setLoading(false)); }, [refresh]);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInitialOffers() {
+      try {
+        const data = await getHrOffers();
+        if (!cancelled) {
+          setOffers(data);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e.message);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadInitialOffers();
+    return () => { cancelled = true; };
+  }, []);
   async function decide(id, action) {
     setBusy(id); setError("");
     try { await action(); await refresh(); setRejecting(null); setReason(""); }

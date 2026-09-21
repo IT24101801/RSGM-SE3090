@@ -1,0 +1,84 @@
+name: RSGM CI
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+jobs:
+
+  # =====================================================
+  # BACKEND CI
+  # =====================================================
+
+  backend:
+    name: Backend Build and Tests
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore Backend Dependencies
+        run: dotnet restore backend/RSGM.Api.Tests/RSGM.Api.Tests.csproj
+
+      - name: Build Backend
+        run: >
+          dotnet build
+          backend/RSGM.Api.Tests/RSGM.Api.Tests.csproj
+          --configuration Release
+          --no-restore
+
+      - name: Run Backend Tests
+        run: >
+          dotnet test
+          backend/RSGM.Api.Tests/RSGM.Api.Tests.csproj
+          --configuration Release
+          --no-build
+          --verbosity normal
+
+
+  # =====================================================
+  # FRONTEND CI
+  # =====================================================
+
+  frontend:
+    name: Frontend Build and Lint
+
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: RSGM-Frontend
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: RSGM-Frontend/package-lock.json
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Build Frontend
+        run: npm run build

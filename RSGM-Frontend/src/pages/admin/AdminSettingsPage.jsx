@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CircleCheck, Save, Settings, Sparkles } from "lucide-react";
+import { CircleCheck, Save, Sparkles } from "lucide-react";
 
 // TODO: replace with GET/PUT /api/admin/config
 function AdminSettingsPage() {
@@ -10,17 +10,25 @@ function AdminSettingsPage() {
     aiMatchThreshold: 70,
     sessionTimeoutMinutes: 30,
   });
+
   const [saved, setSaved] = useState(false);
 
   const update = (key, value) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
+    setSettings((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+
     setSaved(false);
   };
 
   const handleSave = () => {
     // TODO: PUT /api/admin/config with `settings`
     setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+
+    setTimeout(() => {
+      setSaved(false);
+    }, 2500);
   };
 
   return (
@@ -30,7 +38,10 @@ function AdminSettingsPage() {
         SYSTEM CONFIGURATION
       </div>
 
-      <h1 className="mt-4 text-3xl sm:text-4xl font-semibold tracking-tight">Settings</h1>
+      <h1 className="mt-4 text-3xl sm:text-4xl font-semibold tracking-tight">
+        Settings
+      </h1>
+
       <p className="mt-2 text-neutral-500">
         Control platform-wide behavior and limits.
       </p>
@@ -40,20 +51,26 @@ function AdminSettingsPage() {
           title="Allow new registrations"
           description="Let new users sign up for an account."
           checked={settings.allowNewRegistrations}
-          onChange={(v) => update("allowNewRegistrations", v)}
+          onChange={(value) =>
+            update("allowNewRegistrations", value)
+          }
         />
 
         <ToggleRow
           title="Maintenance mode"
           description="Temporarily block non-admin access to the platform."
           checked={settings.maintenanceMode}
-          onChange={(v) => update("maintenanceMode", v)}
+          onChange={(value) =>
+            update("maintenanceMode", value)
+          }
         />
 
         <NumberRow
           title="Max resume upload size (MB)"
           value={settings.maxResumeSizeMb}
-          onChange={(v) => update("maxResumeSizeMb", v)}
+          onChange={(value) =>
+            update("maxResumeSizeMb", value)
+          }
           min={1}
           max={50}
         />
@@ -61,7 +78,9 @@ function AdminSettingsPage() {
         <NumberRow
           title="AI match confidence threshold (%)"
           value={settings.aiMatchThreshold}
-          onChange={(v) => update("aiMatchThreshold", v)}
+          onChange={(value) =>
+            update("aiMatchThreshold", value)
+          }
           min={0}
           max={100}
         />
@@ -69,7 +88,9 @@ function AdminSettingsPage() {
         <NumberRow
           title="Session timeout (minutes)"
           value={settings.sessionTimeoutMinutes}
-          onChange={(v) => update("sessionTimeoutMinutes", v)}
+          onChange={(value) =>
+            update("sessionTimeoutMinutes", value)
+          }
           min={5}
           max={240}
         />
@@ -77,16 +98,19 @@ function AdminSettingsPage() {
 
       <div className="mt-6 flex items-center gap-3">
         <button
+          type="button"
           onClick={handleSave}
           className="h-12 px-6 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center gap-2 hover:bg-neutral-800 active:scale-[0.99] transition"
         >
           <Save size={15} />
+
           Save changes
         </button>
 
         {saved && (
           <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
             <CircleCheck size={15} />
+
             Saved
           </span>
         )}
@@ -95,18 +119,31 @@ function AdminSettingsPage() {
   );
 }
 
-function ToggleRow({ title, description, checked, onChange }) {
+function ToggleRow({
+  title,
+  description,
+  checked,
+  onChange,
+}) {
   return (
     <div className="flex items-center justify-between gap-4 p-6">
       <div>
-        <p className="text-sm font-medium text-neutral-900">{title}</p>
-        <p className="mt-1 text-sm text-neutral-500">{description}</p>
+        <p className="text-sm font-medium text-neutral-900">
+          {title}
+        </p>
+
+        <p className="mt-1 text-sm text-neutral-500">
+          {description}
+        </p>
       </div>
 
       <button
+        type="button"
         onClick={() => onChange(!checked)}
         className={`w-12 h-7 rounded-full flex items-center px-1 transition shrink-0 ${
-          checked ? "bg-neutral-900 justify-end" : "bg-neutral-200 justify-start"
+          checked
+            ? "bg-neutral-900 justify-end"
+            : "bg-neutral-200 justify-start"
         }`}
       >
         <span className="w-5 h-5 rounded-full bg-white shadow-sm" />
@@ -115,17 +152,27 @@ function ToggleRow({ title, description, checked, onChange }) {
   );
 }
 
-function NumberRow({ title, value, onChange, min, max }) {
+function NumberRow({
+  title,
+  value,
+  onChange,
+  min,
+  max,
+}) {
   return (
     <div className="flex items-center justify-between gap-4 p-6">
-      <p className="text-sm font-medium text-neutral-900">{title}</p>
+      <p className="text-sm font-medium text-neutral-900">
+        {title}
+      </p>
 
       <input
         type="number"
         value={value}
         min={min}
         max={max}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={(event) =>
+          onChange(Number(event.target.value))
+        }
         className="w-24 h-10 rounded-lg border border-neutral-200 bg-neutral-50/70 px-3 text-sm text-right outline-none focus:bg-white focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition"
       />
     </div>
