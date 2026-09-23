@@ -7,7 +7,9 @@ public enum ApplicationStatus
     Interview,
     Offer,
     Rejected,
-    Withdrawn
+    Withdrawn,
+    Hired,
+    OfferDeclined
 }
 
 public class Application
@@ -18,11 +20,17 @@ public class Application
 
     public Guid JobPostingId { get; set; }
 
-    public ApplicationStatus Status { get; set; } = ApplicationStatus.UnderReview;
+    public ApplicationStatus Status { get; set; }
+        = ApplicationStatus.UnderReview;
 
-    public DateTime AppliedAt { get; set; } = DateTime.UtcNow;
+    public DateTime AppliedAt { get; set; }
+        = DateTime.UtcNow;
 
     public DateTime? WithdrawnAt { get; set; }
+
+    // Rank 1 is the recruiter's first choice.
+    // Null when the application is not shortlisted.
+    public int? ShortlistRank { get; set; }
 
     public ApplicationUser User { get; set; } = null!;
 

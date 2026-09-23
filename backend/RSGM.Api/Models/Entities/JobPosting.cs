@@ -36,13 +36,19 @@ public class JobPosting
 
     public string Title { get; set; } = string.Empty;
 
-    // Kept temporarily so existing seeded jobs continue to work.
-    // New recruiter-created jobs also use the CompanyId relationship below.
+    // Kept temporarily so existing seeded jobs and Job Seeker UI
+    // can continue to use the company name.
+    // CompanyId is the actual relationship to the Company entity.
     public string Company { get; set; } = string.Empty;
 
     public Guid? CompanyId { get; set; }
 
     public Guid? CreatedByUserId { get; set; }
+
+    // Nullable for existing jobs created before the approval workflow.
+    public Guid? JobRequisitionId { get; set; }
+
+    public JobRequisition? JobRequisition { get; set; }
 
     public string Location { get; set; } = string.Empty;
 
@@ -66,13 +72,13 @@ public class JobPosting
 
     public string? Currency { get; set; }
 
-    // Nullable so pre-existing jobs can survive the migration. New recruiter
-    // postings always receive a validated future deadline.
     public DateOnly? ApplicationDeadline { get; set; }
 
-    public JobPostingStatus Status { get; set; } = JobPostingStatus.Draft;
+    public JobPostingStatus Status { get; set; }
+        = JobPostingStatus.Draft;
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; }
+        = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }
 

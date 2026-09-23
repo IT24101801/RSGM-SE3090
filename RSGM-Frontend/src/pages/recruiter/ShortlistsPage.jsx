@@ -1,121 +1,136 @@
-import { useState } from "react";
-import { CheckCircle2, Lock, Sparkles, Star } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { getPanelists } from "../../services/hiringWorkflowService";
+import { getSentShortlists, sendShortlist } from "../../services/panelistWorkflowService";
+import {
+  AlertCircle, ArrowDown, ArrowLeft, ArrowUp,
+  BriefcaseBusiness, Loader2,
+  Medal, Sparkles, Star, Trash2, Users,
+} from "lucide-react";
+import {
+  getRecruiterApplicants,
+  rankRecruiterShortlist,
+  reviewRecruiterApplicant,
+} from "../../services/recruiterApplicantService";
 
-// TODO: replace with GET /api/recruiter/shortlists, POST /api/recruiter/shortlists/{id}/finalize
-const INITIAL_SHORTLISTS = [
-  {
-    id: "s1",
-    job: "Senior Frontend Engineer",
-    finalized: false,
-    candidates: [
-      { id: "c1", name: "Aisha Rahman", matchScore: 92, approved: true },
-      { id: "c2", name: "Grace Lim", matchScore: 81, approved: false },
-    ],
-  },
-  {
-    id: "s2",
-    job: "Product Designer",
-    finalized: true,
-    candidates: [
-      { id: "c4", name: "Marcus Tan", matchScore: 88, approved: true },
-    ],
-  },
-];
+const card = "rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30";
 
-function ShortlistsPage() {
-  const [shortlists, setShortlists] = useState(INITIAL_SHORTLISTS);
+export default function ShortlistsPage() {
+  const [applicants, setApplicants] = useState([]);
+  const [panelists, setPanelists] = useState([]);
+  const [sent, setSent] = useState([]);
+  const [chosen, setChosen] = useState({});
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  const toggleApprove = (shortlistId, candidateId) => {
-    setShortlists((prev) =>
-      prev.map((s) =>
-        s.id !== shortlistId
-          ? s
-          : {
-              ...s,
-              candidates: s.candidates.map((c) =>
-                c.id === candidateId ? { ...c, approved: !c.approved } : c
-              ),
-            }
-      )
-    );
-  };
+  useEffect(() => {
+    let alive = true;
+    Promise.all([getRecruiterApplicants(), getPanelists(), getSentShortlists()])
+      .then(([items, staff, dispatches]) => { if (alive) { setApplicants(items); setPanelists(staff); setSent(dispatches); } })
+      .catch((e) => { if (alive) setError(e.message); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
 
-  const finalize = (shortlistId) => {
-    // TODO: POST /api/recruiter/shortlists/{id}/finalize
-    setShortlists((prev) =>
-      prev.map((s) => (s.id === shortlistId ? { ...s, finalized: true } : s))
-    );
-  };
+  const groups = useMemo(() => {
+    const jobs = new Map();
+    applicants.filter((a) => a.status === "Shortlisted").forEach((a) => {
+      if (!jobs.has(a.jobPostingId)) jobs.set(a.jobPostingId, { id: a.jobPostingId, title: a.jobTitle, candidates: [] });
+      jobs.get(a.jobPostingId).candidates.push(a);
+    });
+    return [...jobs.values()].map((job) => ({
+      ...job,
+      candidates: job.candidates.sort((a, b) =>
+        (a.shortlistRank ?? 9999) - (b.shortlistRank ?? 9999) || b.matchScore - a.matchScore),
+    }));
+  }, [applicants]);
+  async function dispatch(job) {
+    setBusy(true); setError(""); setSuccess("");
+    try { await sendShortlist(job.id, chosen[job.id] || panelists[0]?.id); setSent(await getSentShortlists()); setSuccess(`Sent ${job.title} to the hiring panelist.`); }
+    catch (e) { setError(e.message); } finally { setBusy(false); }
+  }
+  const total = groups.reduce((sum, job) => sum + job.candidates.length, 0);
+
+  async function move(job, index, offset) {
+    const other = index + offset;
+    if (other < 0 || other >= job.candidates.length || sent.some((d) => d.jobPostingId === job.id)) return;
+    const reordered = [...job.candidates];
+    [reordered[index], reordered[other]] = [reordered[other], reordered[index]];
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await rankRecruiterShortlist(job.id, reordered.map((a) => a.id));
+      setApplicants((previous) => previous.map((a) => updated.find((item) => item.id === a.id) || a));
+    } catch (e) {
+      setError(e.message || "Unable to save the new rank.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id, jobId) {
+    if (sent.some((d) => d.jobPostingId === jobId)) return;
+    setBusy(true);
+    setError("");
+    try {
+      await reviewRecruiterApplicant(id, "UnderReview");
+      setApplicants(await getRecruiterApplicants());
+    } catch (e) {
+      setError(e.message || "Unable to remove this candidate.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div>
-      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 text-[11px] font-semibold">
-        <Sparkles size={12} />
-        SHORTLIST APPROVAL
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-[11px] font-semibold text-blue-600"><Sparkles size={12} /> RECRUITER WORKSPACE</div>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Ranked shortlists</h1>
+          <p className="mt-2 text-neutral-500">Choose the strongest candidates and set their order for each position.</p>
+        </div>
+        <Link to="/recruiter/applications" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-neutral-900 px-4 text-sm font-semibold text-white transition hover:bg-neutral-800"><ArrowLeft size={16} /> Review applications</Link>
       </div>
 
-      <h1 className="mt-4 text-3xl sm:text-4xl font-semibold tracking-tight">Shortlists</h1>
-      <p className="mt-2 text-neutral-500">
-        Approve candidates from the ranked matches and finalize each shortlist.
-      </p>
-
-      <div className="mt-8 space-y-6">
-        {shortlists.map((s) => (
-          <div
-            key={s.id}
-            className="rounded-2xl border border-white/70 bg-white/75 backdrop-blur-2xl shadow-xl shadow-neutral-200/30 p-6"
-          >
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-lg font-semibold tracking-tight">{s.job}</h2>
-
-              {s.finalized ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-100 text-neutral-500 text-xs font-medium">
-                  <Lock size={12} />
-                  Finalized
-                </span>
-              ) : (
-                <button
-                  onClick={() => finalize(s.id)}
-                  disabled={!s.candidates.some((c) => c.approved)}
-                  className="h-10 px-4 rounded-xl bg-neutral-900 text-white text-sm font-semibold flex items-center gap-2 hover:bg-neutral-800 active:scale-[0.99] transition disabled:opacity-50"
-                >
-                  <CheckCircle2 size={14} />
-                  Finalize shortlist
-                </button>
-              )}
-            </div>
-
-            <div className="mt-4 space-y-2.5">
-              {s.candidates.map((c) => (
-                <label
-                  key={c.id}
-                  className={`flex items-center justify-between gap-4 p-3.5 rounded-xl border transition ${
-                    c.approved ? "border-emerald-200 bg-emerald-50/50" : "border-neutral-200 bg-neutral-50/50"
-                  } ${s.finalized ? "opacity-70" : "cursor-pointer hover:bg-neutral-100/70"}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={c.approved}
-                      disabled={s.finalized}
-                      onChange={() => toggleApprove(s.id, c.id)}
-                      className="w-4 h-4 accent-neutral-900"
-                    />
-                    <span className="text-sm font-medium text-neutral-900">{c.name}</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 text-sm text-neutral-500">
-                    <Star size={13} className="text-amber-400 fill-amber-400" />
-                    {c.matchScore}%
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-        ))}
+      <div className="mt-8 grid gap-4 sm:grid-cols-3">
+        <Metric icon={Users} label="Shortlisted candidates" value={loading ? "—" : total} />
+        <Metric icon={BriefcaseBusiness} label="Positions with shortlists" value={loading ? "—" : groups.length} />
+        <div className={`${card} flex items-center gap-3 p-5`}><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600"><Medal size={19} /></div><p className="text-sm text-neutral-600">Rank <strong className="text-neutral-900">#1</strong> is your first choice for each job.</p></div>
       </div>
+
+      {success && <p role="status" className="mt-5 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{success}</p>}
+      {error && <div role="alert" className="mt-6 flex gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"><AlertCircle size={17} className="shrink-0" />{error}</div>}
+      {loading ? <div className="mt-10 flex items-center justify-center gap-2 text-sm text-neutral-400"><Loader2 size={18} className="animate-spin" />Loading shortlists...</div>
+        : groups.length === 0 ? <div className={`${card} mt-8 py-16 text-center`}><Users size={28} className="mx-auto text-blue-300" /><h2 className="mt-3 font-semibold">No shortlisted candidates yet</h2><p className="mt-1 text-sm text-neutral-500">Review applications and shortlist the candidates you want to consider.</p><Link to="/recruiter/applications" className="mt-5 inline-block rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white">View applications</Link></div>
+        : <div className="mt-8 space-y-6">
+            {groups.map((job) => (
+              <section key={job.id} className={`${card} overflow-hidden`}>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 px-5 py-5 sm:px-6">
+                  <div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-100 text-blue-600"><BriefcaseBusiness size={19} /></span><div><h2 className="font-semibold text-neutral-900">{job.title}</h2><p className="mt-0.5 text-xs text-neutral-400">{job.candidates.length} candidate{job.candidates.length === 1 ? "" : "s"} ranked</p></div></div>
+                  {sent.some((d) => d.jobPostingId === job.id) ? <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">Sent to {sent.find((d) => d.jobPostingId === job.id).panelist}</span> : <div className="flex flex-wrap gap-2"><select aria-label={`Panelist for ${job.title}`} className="rounded-xl border border-neutral-200 px-3 py-2 text-sm" value={chosen[job.id] || panelists[0]?.id || ""} onChange={(e) => setChosen((old) => ({ ...old, [job.id]: e.target.value }))}>{panelists.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select><button type="button" disabled={busy || !panelists.length} onClick={() => dispatch(job)} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Send shortlist</button></div>}
+                </div>
+                <div className="divide-y divide-neutral-100">
+                  {job.candidates.map((a, index) => (
+                    <div key={a.id} className="flex flex-col gap-4 px-5 py-5 transition hover:bg-blue-50/25 sm:flex-row sm:items-center sm:px-6">
+                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${index === 0 ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-700"}`}>#{index + 1}</div>
+                      <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-neutral-900">{a.fullName}</h3>{index === 0 && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-600">Top choice</span>}</div><p className="mt-1 text-xs text-neutral-400">{a.email}</p><div className="mt-2 flex flex-wrap gap-1.5">{(a.matchedSkills || []).slice(0, 4).map((skill) => <span key={skill} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">{skill}</span>)}{(a.matchedSkills || []).length === 0 && <span className="text-xs text-neutral-400">No required skills matched</span>}</div></div>
+                      <div className="flex flex-wrap items-center gap-3 sm:justify-end"><span className="inline-flex items-center gap-1 rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700"><Star size={14} className="fill-amber-400 text-amber-400" /> {a.matchScore}% match</span><div className="flex gap-1"><RankButton icon={ArrowUp} title="Move up" disabled={busy || sent.some((d) => d.jobPostingId === job.id) || index === 0} onClick={() => move(job, index, -1)} /><RankButton icon={ArrowDown} title="Move down" disabled={busy || sent.some((d) => d.jobPostingId === job.id) || index === job.candidates.length - 1} onClick={() => move(job, index, 1)} /><RankButton icon={Trash2} title="Remove from shortlist" danger disabled={busy || sent.some((d) => d.jobPostingId === job.id)} onClick={() => remove(a.id, job.id)} /></div></div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>}
     </div>
   );
 }
 
-export default ShortlistsPage;
+function Metric({ icon: Icon, label, value }) {
+  return <div className={`${card} p-5`}><div className="flex items-center justify-between"><span className="text-xs text-neutral-500">{label}</span><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-blue-600"><Icon size={17} /></span></div><p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p></div>;
+}
+function RankButton({ icon: Icon, title, onClick, disabled, danger }) {
+  return <button type="button" title={title} aria-label={title} onClick={onClick} disabled={disabled} className={`flex h-9 w-9 items-center justify-center rounded-xl border transition disabled:cursor-not-allowed disabled:opacity-40 ${danger ? "border-red-200 text-red-600 hover:bg-red-50" : "border-neutral-200 text-neutral-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"}`}><Icon size={15} /></button>;
+}

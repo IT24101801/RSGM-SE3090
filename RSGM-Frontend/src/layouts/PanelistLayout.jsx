@@ -10,10 +10,13 @@ import {
 } from "lucide-react";
 
 import Brand from "../components/common/Brand";
+import NotificationsNavLink from "../components/common/NotificationsNavLink";
 import { getCurrentUser, logout } from "../services/authService";
 
 const NAV_ITEMS = [
   { to: "/panelist", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/panelist/shortlists", label: "Shortlists", icon: CalendarClock },
+  { to: "/panelist/schedule", label: "My Schedule", icon: CalendarClock },
   { to: "/panelist/interviews", label: "My Interviews", icon: CalendarClock },
 ];
 
@@ -44,6 +47,7 @@ function PanelistLayout() {
             {NAV_ITEMS.map((item) => (
               <SidebarLink key={item.to} {...item} />
             ))}
+            <NotificationsNavLink to="/panelist/notifications" accent="amber" />
           </nav>
 
           <div className="px-4 py-5 border-t border-neutral-200/70">
@@ -82,6 +86,7 @@ function PanelistLayout() {
                 {NAV_ITEMS.map((item) => (
                   <SidebarLink key={item.to} {...item} onClick={() => setMobileOpen(false)} />
                 ))}
+                <NotificationsNavLink to="/panelist/notifications" accent="amber" onClick={() => setMobileOpen(false)} />
               </nav>
 
               <div className="px-4 py-5 border-t border-neutral-200">

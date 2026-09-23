@@ -36,7 +36,7 @@ public class AdminUsersController : ControllerBase
         if (currentAdminId == null) return Unauthorized();
 
         return ToActionResult(await _adminUserService.UpdateRoleAsync(
-            currentAdminId.Value, id, request.Role));
+            currentAdminId.Value, id, request.Role, request.CompanyId));
     }
 
     private IActionResult ToActionResult(
@@ -46,6 +46,8 @@ public class AdminUsersController : ControllerBase
         {
             AdminUserUpdateResult.NotFound => NotFound(new { message = "User not found." }),
             AdminUserUpdateResult.InvalidRole => BadRequest(new { message = "The selected role is invalid." }),
+            AdminUserUpdateResult.CompanyRequired => BadRequest(new { message = "Select a registered company when assigning a staff role." }),
+            AdminUserUpdateResult.InvalidCompany => BadRequest(new { message = "The selected company does not exist or is inactive." }),
             AdminUserUpdateResult.CannotModifySelf => BadRequest(new
                 { message = "You cannot change your own role or account status." }),
             AdminUserUpdateResult.LastSystemAdmin => BadRequest(new

@@ -37,9 +37,9 @@ export async function updateAdminUserStatus(id, isActive) {
   return data;
 }
 
-export async function updateAdminUserRole(id, role) {
+export async function updateAdminUserRole(id, role, companyId = null) {
   const response = await fetch(`${API_BASE_URL}/api/admin/users/${id}/role`, {
-    method: "PATCH", headers: getAuthHeaders(), body: JSON.stringify({ role }),
+    method: "PATCH", headers: getAuthHeaders(), body: JSON.stringify({ role, companyId }),
   });
   const data = await readResponse(response);
   if (!response.ok) throw new Error(getErrorMessage(data, "Unable to update user role."));

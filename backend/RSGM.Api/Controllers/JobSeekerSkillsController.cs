@@ -10,17 +10,21 @@ namespace RSGM.Api.Controllers;
 [ApiController]
 [Route("api/jobseeker/skills")]
 [Authorize(Roles = AppRoles.JobSeeker)]
-public class JobSeekerSkillsController : ControllerBase
+public class JobSeekerSkillsController
+    : ControllerBase
 {
-    private readonly JobSeekerSkillService _skillService;
+    private readonly JobSeekerSkillService
+        _skillService;
 
-    public JobSeekerSkillsController(JobSeekerSkillService skillService)
+    public JobSeekerSkillsController(
+        JobSeekerSkillService skillService)
     {
         _skillService = skillService;
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetMySkills()
+    public async Task<IActionResult>
+        GetMySkills()
     {
         var userId = GetCurrentUserId();
 
@@ -29,13 +33,18 @@ public class JobSeekerSkillsController : ControllerBase
             return Unauthorized();
         }
 
-        var skills = await _skillService.GetByUserIdAsync(userId.Value);
+        var skills =
+            await _skillService
+                .GetByUserIdAsync(
+                    userId.Value);
 
         return Ok(skills);
     }
 
     [HttpPost]
-    public async Task<IActionResult> AddSkill(AddJobSeekerSkillRequest request)
+    public async Task<IActionResult>
+        AddSkill(
+            AddJobSeekerSkillRequest request)
     {
         var userId = GetCurrentUserId();
 
@@ -44,25 +53,75 @@ public class JobSeekerSkillsController : ControllerBase
             return Unauthorized();
         }
 
-        var (result, skill) = await _skillService.AddAsync(userId.Value, request);
+        var (result, skill) =
+            await _skillService.AddAsync(
+                userId.Value,
+                request);
 
         return result switch
         {
-            AddSkillResult.Added => Ok(skill),
-            AddSkillResult.AlreadyAdded => Conflict(new
-            {
-                message = "This skill is already on your profile."
-            }),
-            AddSkillResult.SkillNotFound => NotFound(new
-            {
-                message = "This skill doesn't exist in the catalog."
-            }),
+            AddSkillResult.Added =>
+                Ok(skill),
+
+            AddSkillResult.AlreadyAdded =>
+                Conflict(new
+                {
+                    message =
+                        "This skill is already on your profile."
+                }),
+
+            AddSkillResult.SkillNotFound =>
+                NotFound(new
+                {
+                    message =
+                        "This skill doesn't exist in the catalog."
+                }),
+
+            _ => BadRequest()
+        };
+    }
+
+    [HttpPut("{skillId:guid}/proficiency")]
+    public async Task<IActionResult>
+        UpdateProficiency(
+            Guid skillId,
+            UpdateJobSeekerSkillProficiencyRequest
+                request)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+
+        var (result, skill) =
+            await _skillService
+                .UpdateProficiencyAsync(
+                    userId.Value,
+                    skillId,
+                    request);
+
+        return result switch
+        {
+            UpdateSkillProficiencyResult.Updated =>
+                Ok(skill),
+
+            UpdateSkillProficiencyResult
+                .SkillNotFound =>
+                NotFound(new
+                {
+                    message =
+                        "Skill not found on your profile."
+                }),
+
             _ => BadRequest()
         };
     }
 
     [HttpDelete("{skillId:guid}")]
-    public async Task<IActionResult> RemoveSkill(Guid skillId)
+    public async Task<IActionResult>
+        RemoveSkill(Guid skillId)
     {
         var userId = GetCurrentUserId();
 
@@ -71,13 +130,17 @@ public class JobSeekerSkillsController : ControllerBase
             return Unauthorized();
         }
 
-        var removed = await _skillService.RemoveAsync(userId.Value, skillId);
+        var removed =
+            await _skillService.RemoveAsync(
+                userId.Value,
+                skillId);
 
         if (!removed)
         {
             return NotFound(new
             {
-                message = "Skill not found on your profile."
+                message =
+                    "Skill not found on your profile."
             });
         }
 
@@ -86,8 +149,14 @@ public class JobSeekerSkillsController : ControllerBase
 
     private Guid? GetCurrentUserId()
     {
-        var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var idClaim =
+            User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
 
-        return Guid.TryParse(idClaim, out var id) ? id : null;
+        return Guid.TryParse(
+            idClaim,
+            out var id)
+            ? id
+            : null;
     }
 }

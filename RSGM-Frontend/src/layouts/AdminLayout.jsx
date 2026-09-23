@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import Brand from "../components/common/Brand";
+import NotificationsNavLink from "../components/common/NotificationsNavLink";
 import {
   getCurrentUser,
   logout,
@@ -83,16 +84,12 @@ function AdminLayout() {
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-neutral-900">
-      {/* ================= BACKGROUND GLOWS ================= */}
-
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute -top-32 left-[15%] w-105 h-105 bg-violet-300/25 blur-[140px] rounded-full" />
         <div className="absolute top-[50%] -right-40 w-100 h-100 bg-blue-200/30 blur-[140px] rounded-full" />
       </div>
 
       <div className="relative flex">
-        {/* ================= SIDEBAR (desktop) ================= */}
-
         <aside className="hidden lg:flex lg:flex-col lg:w-72 lg:shrink-0 lg:h-screen lg:sticky lg:top-0 border-r border-neutral-200/70 bg-white/60 backdrop-blur-xl">
           <div className="px-6 py-6 border-b border-neutral-200/70">
             <Brand />
@@ -102,6 +99,7 @@ function AdminLayout() {
             {NAV_ITEMS.map((item) => (
               <SidebarLink key={item.to} {...item} />
             ))}
+            <NotificationsNavLink to="/admin/notifications" />
           </nav>
 
           <div className="px-4 py-5 border-t border-neutral-200/70">
@@ -130,8 +128,6 @@ function AdminLayout() {
           </div>
         </aside>
 
-        {/* ================= MOBILE SIDEBAR ================= */}
-
         {mobileOpen && (
           <div className="lg:hidden fixed inset-0 z-40">
             <div
@@ -142,6 +138,7 @@ function AdminLayout() {
             <aside className="absolute left-0 top-0 h-full w-72 bg-white flex flex-col shadow-2xl">
               <div className="px-6 py-6 border-b border-neutral-200 flex items-center justify-between">
                 <Brand />
+
                 <button onClick={() => setMobileOpen(false)}>
                   <X size={20} className="text-neutral-500" />
                 </button>
@@ -155,6 +152,7 @@ function AdminLayout() {
                     onClick={() => setMobileOpen(false)}
                   />
                 ))}
+                <NotificationsNavLink to="/admin/notifications" onClick={() => setMobileOpen(false)} />
               </nav>
 
               <div className="px-4 py-5 border-t border-neutral-200">
@@ -170,11 +168,7 @@ function AdminLayout() {
           </div>
         )}
 
-        {/* ================= MAIN CONTENT ================= */}
-
         <div className="flex-1 min-w-0">
-          {/* TOPBAR (mobile) */}
-
           <header className="lg:hidden flex items-center justify-between px-5 py-4 border-b border-neutral-200/70 bg-white/70 backdrop-blur-xl sticky top-0 z-30">
             <Brand />
 

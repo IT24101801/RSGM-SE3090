@@ -5,6 +5,9 @@ namespace RSGM.Api.Models.DTOs.RecruiterJobs;
 public class CreateRecruiterJobRequest
 {
     [Required]
+    public Guid JobRequisitionId { get; set; }
+
+    [Required]
     [MaxLength(150)]
     public string Title { get; set; } = string.Empty;
 

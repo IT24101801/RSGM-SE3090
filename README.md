@@ -584,10 +584,10 @@ It is **not** implemented as a generic chatbot or one-shot text generator.
 
 | Agent | Responsibility | Example Inputs | Example Outputs |
 |---|---|---|---|
-| **Job Posting & Requisition Agent** | Validate requisition readiness and support approval workflow | Draft requisition, skills, job metadata | Validation result, missing-field notes, approval-ready summary |
-| **Application Management Agent** | Validate candidate/application completeness and workflow eligibility | Candidate profile, job, application | Validated application result, warnings, workflow status |
-| **Skill Matching & Shortlisting Agent** | Match skills, identify gaps, rank candidates, prepare recommendation | Candidate skills, job requirements, applications | Match scores, gap reports, ranked recommendation |
-| **Interview & Offer Agent** | Support scheduling/feedback checks and prepare offer draft | Interview data, feedback, approved candidate data | Scheduling recommendation, offer draft, validation status |
+| **Job Posting & Requisition Agent - HR** | Validate requisition readiness and support approval workflow | Draft requisition, skills, job metadata | Validation result, missing-field notes, approval-ready summary |
+| **Application Management Agent - Job Seeker** | Validate candidate/application completeness and workflow eligibility | Candidate profile, job, application | Validated application result, warnings, workflow status |
+| **Skill Matching & Shortlisting Agent - Recruiter** | Match skills, identify gaps, rank candidates, prepare recommendation | Candidate skills, job requirements, applications | Match scores, gap reports, ranked recommendation |
+| **Interview & Offer Agent - Hiring penlist** | Support scheduling/feedback checks and prepare offer draft | Interview data, feedback, approved candidate data | Scheduling recommendation, offer draft, validation status |
 
 ## 8.3 Coordinator / Planner
 

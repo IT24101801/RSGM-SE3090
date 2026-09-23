@@ -4,6 +4,7 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
+
 import {
   AlertCircle,
   ArrowRight,
@@ -14,6 +15,7 @@ import {
 import AuthShell from "../components/auth/AuthShell";
 import FormField from "../components/auth/FormField";
 import PasswordField from "../components/auth/PasswordField";
+
 import {
   loginUser,
   saveAuth,
@@ -46,18 +48,30 @@ function LoginPage() {
 
     setForm((previous) => ({
       ...previous,
-
       [name]:
         type === "checkbox"
           ? checked
           : value,
     }));
+
+    setError("");
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
 
     setError("");
+
+    if (
+      !form.email.trim() ||
+      !form.password
+    ) {
+      setError(
+        "Please enter your email and password."
+      );
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -118,7 +132,6 @@ function LoginPage() {
 
   return (
     <AuthShell
-      badge="WELCOME BACK"
       title="Sign in to RSGM"
       subtitle="Access your account and continue managing your recruitment workflow."
     >
@@ -145,11 +158,10 @@ function LoginPage() {
           label="Email address"
           name="email"
           type="email"
-          placeholder="name@example.com"
           value={form.email}
           onChange={handleChange}
+          placeholder="you@example.com"
           icon={Mail}
-          required
           autoComplete="email"
         />
 
@@ -158,14 +170,13 @@ function LoginPage() {
         <PasswordField
           label="Password"
           name="password"
-          placeholder="Enter your password"
           value={form.password}
           onChange={handleChange}
-          required
+          placeholder="Enter your password"
           autoComplete="current-password"
         />
 
-        {/* ERROR */}
+        {/* ERROR MESSAGE */}
 
         {error && (
           <div className="flex items-start gap-3 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
@@ -214,7 +225,7 @@ function LoginPage() {
 
           {!isLoading && (
             <ArrowRight
-              size={16}
+              size={17}
               className="group-hover:translate-x-1 transition-transform"
             />
           )}
@@ -242,7 +253,7 @@ function LoginPage() {
 
         <Link
           to="/register"
-          className="font-semibold text-violet-600 hover:text-violet-700"
+          className="font-semibold text-violet-600 hover:text-violet-700 transition"
         >
           Create account
         </Link>

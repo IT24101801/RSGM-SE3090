@@ -95,8 +95,12 @@ public class AdminCompaniesController : ControllerBase
     public async Task<IActionResult> RemoveMember(Guid companyId, Guid userId)
     {
         var result = await _service.RemoveMemberAsync(companyId, userId);
-        return result == CompanyOperationResult.NotFound
-            ? NotFound(new { message = "Company membership not found." })
-            : NoContent();
+        return result switch
+        {
+            CompanyOperationResult.NotFound => NotFound(new { message = "Company membership not found." }),
+            CompanyOperationResult.StaffRequiresCompany => BadRequest(new
+                { message = "Staff must belong to a company. Change their role or transfer them to another company first." }),
+            _ => NoContent()
+        };
     }
 }
