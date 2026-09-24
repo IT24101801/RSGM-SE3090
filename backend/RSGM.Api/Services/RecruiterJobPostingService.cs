@@ -41,26 +41,53 @@ public class RecruiterJobPostingService
         GetMineAsync(Guid recruiterId)
     {
         var membership = await GetMembershipAsync(recruiterId);
+
         if (membership == null)
-            return (RecruiterJobResult.NoCompany, new List<RecruiterJobPostingResponse>());
+        {
+            return (
+                RecruiterJobResult.NoCompany,
+                new List<RecruiterJobPostingResponse>()
+            );
+        }
+
         if (!membership.Company.IsActive)
-            return (RecruiterJobResult.CompanyInactive, new List<RecruiterJobPostingResponse>());
+        {
+            return (
+                RecruiterJobResult.CompanyInactive,
+                new List<RecruiterJobPostingResponse>()
+            );
+        }
 
         var jobs = await JobQuery(recruiterId)
             .OrderByDescending(job => job.CreatedAt)
             .ToListAsync();
 
-        return (RecruiterJobResult.Success, jobs.Select(ToResponse).ToList());
+        return (
+            RecruiterJobResult.Success,
+            jobs.Select(ToResponse).ToList()
+        );
     }
 
     public async Task<(RecruiterJobResult Result, RecruiterJobPostingResponse? Job)>
         GetMineByIdAsync(Guid recruiterId, Guid jobId)
     {
         var membership = await GetMembershipAsync(recruiterId);
+
         if (membership == null)
-            return (RecruiterJobResult.NoCompany, null);
+        {
+            return (
+                RecruiterJobResult.NoCompany,
+                null
+            );
+        }
+
         if (!membership.Company.IsActive)
-            return (RecruiterJobResult.CompanyInactive, null);
+        {
+            return (
+                RecruiterJobResult.CompanyInactive,
+                null
+            );
+        }
 
         var job = await JobQuery(recruiterId)
             .FirstOrDefaultAsync(item => item.Id == jobId);
@@ -71,29 +98,70 @@ public class RecruiterJobPostingService
     }
 
     public async Task<(RecruiterJobResult Result, RecruiterJobPostingResponse? Job)>
-        CreateAsync(Guid recruiterId, CreateRecruiterJobRequest request)
+        CreateAsync(
+            Guid recruiterId,
+            CreateRecruiterJobRequest request)
     {
         var membership = await GetMembershipAsync(recruiterId);
+
         if (membership == null)
-            return (RecruiterJobResult.NoCompany, null);
+        {
+            return (
+                RecruiterJobResult.NoCompany,
+                null
+            );
+        }
+
         if (!membership.Company.IsActive)
-            return (RecruiterJobResult.CompanyInactive, null);
+        {
+            return (
+                RecruiterJobResult.CompanyInactive,
+                null
+            );
+        }
 
         if (request.JobRequisitionId == Guid.Empty)
-            return (RecruiterJobResult.RequisitionRequired, null);
+        {
+            return (
+                RecruiterJobResult.RequisitionRequired,
+                null
+            );
+        }
 
         var requisition = await _context.JobRequisitions
             .AsNoTracking()
-            .FirstOrDefaultAsync(item => item.Id == request.JobRequisitionId &&
-                item.RecruiterId == recruiterId && item.CompanyId == membership.CompanyId);
-        if (requisition == null || requisition.Status != JobRequisitionStatus.Approved)
-            return (RecruiterJobResult.RequisitionNotApproved, null);
-        if (await _context.JobPostings.AnyAsync(item => item.JobRequisitionId == requisition.Id))
-            return (RecruiterJobResult.RequisitionAlreadyUsed, null);
+            .FirstOrDefaultAsync(item =>
+                item.Id == request.JobRequisitionId &&
+                item.RecruiterId == recruiterId &&
+                item.CompanyId == membership.CompanyId);
+
+        if (requisition == null ||
+            requisition.Status != JobRequisitionStatus.Approved)
+        {
+            return (
+                RecruiterJobResult.RequisitionNotApproved,
+                null
+            );
+        }
+
+        if (await _context.JobPostings.AnyAsync(
+                item => item.JobRequisitionId == requisition.Id))
+        {
+            return (
+                RecruiterJobResult.RequisitionAlreadyUsed,
+                null
+            );
+        }
 
         var skills = await GetValidSkillsAsync(request.SkillIds);
+
         if (skills == null)
-            return (RecruiterJobResult.InvalidSkills, null);
+        {
+            return (
+                RecruiterJobResult.InvalidSkills,
+                null
+            );
+        }
 
         var validation = ValidateJobDetails(
             request.EmploymentType,
@@ -105,12 +173,28 @@ public class RecruiterJobPostingService
             request.Currency,
             request.ApplicationDeadline,
             out var details);
-        if (validation != RecruiterJobResult.Success)
-            return (validation, null);
 
-        if (!MatchesApproval(request.Title, request.Location, details, request.MinSalary,
-                request.MaxSalary, requisition))
-            return (RecruiterJobResult.RequisitionMismatch, null);
+        if (validation != RecruiterJobResult.Success)
+        {
+            return (
+                validation,
+                null
+            );
+        }
+
+        if (!MatchesApproval(
+                request.Title,
+                request.Location,
+                details,
+                request.MinSalary,
+                request.MaxSalary,
+                requisition))
+        {
+            return (
+                RecruiterJobResult.RequisitionMismatch,
+                null
+            );
+        }
 
         var job = new JobPosting
         {
@@ -136,45 +220,92 @@ public class RecruiterJobPostingService
 
         foreach (var skill in skills)
         {
-            job.RequiredSkills.Add(new JobPostingSkill { SkillId = skill.Id });
+            job.RequiredSkills.Add(
+                new JobPostingSkill
+                {
+                    SkillId = skill.Id
+                });
         }
 
         _context.JobPostings.Add(job);
+
         try
         {
             await _context.SaveChangesAsync();
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
-            { SqlState: PostgresErrorCodes.UniqueViolation,
-              ConstraintName: "IX_JobPostings_JobRequisitionId" })
+        catch (DbUpdateException ex)
+            when (ex.InnerException is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation,
+                ConstraintName: "IX_JobPostings_JobRequisitionId"
+            })
         {
-            return (RecruiterJobResult.RequisitionAlreadyUsed, null);
+            return (
+                RecruiterJobResult.RequisitionAlreadyUsed,
+                null
+            );
         }
 
-        return await GetMineByIdAsync(recruiterId, job.Id);
+        return await GetMineByIdAsync(
+            recruiterId,
+            job.Id);
     }
 
     public async Task<(RecruiterJobResult Result, RecruiterJobPostingResponse? Job)>
-        UpdateAsync(Guid recruiterId, Guid jobId, UpdateRecruiterJobRequest request)
+        UpdateAsync(
+            Guid recruiterId,
+            Guid jobId,
+            UpdateRecruiterJobRequest request)
     {
         var membership = await GetMembershipAsync(recruiterId);
+
         if (membership == null)
-            return (RecruiterJobResult.NoCompany, null);
+        {
+            return (
+                RecruiterJobResult.NoCompany,
+                null
+            );
+        }
+
         if (!membership.Company.IsActive)
-            return (RecruiterJobResult.CompanyInactive, null);
+        {
+            return (
+                RecruiterJobResult.CompanyInactive,
+                null
+            );
+        }
 
         var job = await _context.JobPostings
             .Include(item => item.RequiredSkills)
-            .FirstOrDefaultAsync(item => item.Id == jobId && item.CreatedByUserId == recruiterId);
+            .FirstOrDefaultAsync(item =>
+                item.Id == jobId &&
+                item.CreatedByUserId == recruiterId);
 
         if (job == null)
-            return (RecruiterJobResult.NotFound, null);
+        {
+            return (
+                RecruiterJobResult.NotFound,
+                null
+            );
+        }
+
         if (job.Status == JobPostingStatus.Closed)
-            return (RecruiterJobResult.ClosedJob, null);
+        {
+            return (
+                RecruiterJobResult.ClosedJob,
+                null
+            );
+        }
 
         var skills = await GetValidSkillsAsync(request.SkillIds);
+
         if (skills == null)
-            return (RecruiterJobResult.InvalidSkills, null);
+        {
+            return (
+                RecruiterJobResult.InvalidSkills,
+                null
+            );
+        }
 
         var validation = ValidateJobDetails(
             request.EmploymentType,
@@ -186,18 +317,40 @@ public class RecruiterJobPostingService
             request.Currency,
             request.ApplicationDeadline,
             out var details);
+
         if (validation != RecruiterJobResult.Success)
-            return (validation, null);
+        {
+            return (
+                validation,
+                null
+            );
+        }
 
         if (job.JobRequisitionId.HasValue)
         {
-            var approved = await _context.JobRequisitions.AsNoTracking()
-                .FirstOrDefaultAsync(item => item.Id == job.JobRequisitionId.Value &&
-                    item.RecruiterId == recruiterId && item.CompanyId == membership.CompanyId &&
-                    item.Status == JobRequisitionStatus.Approved);
-            if (approved == null || !MatchesApproval(request.Title, request.Location, details,
-                    request.MinSalary, request.MaxSalary, approved))
-                return (RecruiterJobResult.RequisitionMismatch, null);
+            var approved =
+                await _context.JobRequisitions
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(item =>
+                        item.Id == job.JobRequisitionId.Value &&
+                        item.RecruiterId == recruiterId &&
+                        item.CompanyId == membership.CompanyId &&
+                        item.Status == JobRequisitionStatus.Approved);
+
+            if (approved == null ||
+                !MatchesApproval(
+                    request.Title,
+                    request.Location,
+                    details,
+                    request.MinSalary,
+                    request.MaxSalary,
+                    approved))
+            {
+                return (
+                    RecruiterJobResult.RequisitionMismatch,
+                    null
+                );
+            }
         }
 
         job.Title = request.Title.Trim();
@@ -215,7 +368,9 @@ public class RecruiterJobPostingService
         job.ApplicationDeadline = request.ApplicationDeadline;
         job.UpdatedAt = DateTime.UtcNow;
 
-        _context.JobPostingSkills.RemoveRange(job.RequiredSkills);
+        _context.JobPostingSkills.RemoveRange(
+            job.RequiredSkills);
+
         job.RequiredSkills = skills
             .Select(skill => new JobPostingSkill
             {
@@ -225,151 +380,335 @@ public class RecruiterJobPostingService
             .ToList();
 
         await _context.SaveChangesAsync();
-        return await GetMineByIdAsync(recruiterId, job.Id);
+
+        return await GetMineByIdAsync(
+            recruiterId,
+            job.Id);
     }
 
     public async Task<(RecruiterJobResult Result, RecruiterJobPostingResponse? Job)>
-        UpdateStatusAsync(Guid recruiterId, Guid jobId, string requestedStatus)
+        UpdateStatusAsync(
+            Guid recruiterId,
+            Guid jobId,
+            string requestedStatus)
     {
         var membership = await GetMembershipAsync(recruiterId);
+
         if (membership == null)
-            return (RecruiterJobResult.NoCompany, null);
+        {
+            return (
+                RecruiterJobResult.NoCompany,
+                null
+            );
+        }
+
         if (!membership.Company.IsActive)
-            return (RecruiterJobResult.CompanyInactive, null);
+        {
+            return (
+                RecruiterJobResult.CompanyInactive,
+                null
+            );
+        }
 
         var job = await _context.JobPostings
-            .FirstOrDefaultAsync(item => item.Id == jobId && item.CreatedByUserId == recruiterId);
+            .FirstOrDefaultAsync(item =>
+                item.Id == jobId &&
+                item.CreatedByUserId == recruiterId);
 
         if (job == null)
-            return (RecruiterJobResult.NotFound, null);
-        if (!Enum.TryParse<JobPostingStatus>(requestedStatus, true, out var status) ||
+        {
+            return (
+                RecruiterJobResult.NotFound,
+                null
+            );
+        }
+
+        if (!Enum.TryParse<JobPostingStatus>(
+                requestedStatus,
+                true,
+                out var status) ||
             !Enum.IsDefined(status))
-            return (RecruiterJobResult.InvalidStatus, null);
-        if (job.Status == JobPostingStatus.Closed && status != JobPostingStatus.Closed)
-            return (RecruiterJobResult.ClosedJob, null);
+        {
+            return (
+                RecruiterJobResult.InvalidStatus,
+                null
+            );
+        }
+
+        // Closed is a terminal state.
+        if (job.Status == JobPostingStatus.Closed &&
+            status != JobPostingStatus.Closed)
+        {
+            return (
+                RecruiterJobResult.ClosedJob,
+                null
+            );
+        }
+
+        // Published jobs cannot be moved back to Draft.
+        // This prevents an already public recruitment opportunity
+        // from being silently reverted.
+        if (!IsValidStatusTransition(
+                job.Status,
+                status))
+        {
+            return (
+                RecruiterJobResult.InvalidStatus,
+                null
+            );
+        }
+
+        // A job cannot be published after its application
+        // deadline has passed.
         if (status == JobPostingStatus.Published &&
             (!job.ApplicationDeadline.HasValue ||
-             job.ApplicationDeadline.Value < DateOnly.FromDateTime(DateTime.UtcNow)))
-            return (RecruiterJobResult.InvalidDeadline, null);
+             job.ApplicationDeadline.Value <
+                DateOnly.FromDateTime(DateTime.UtcNow)))
+        {
+            return (
+                RecruiterJobResult.InvalidDeadline,
+                null
+            );
+        }
 
+        // A published job must still have an approved
+        // requisition owned by the same recruiter/company.
         if (status == JobPostingStatus.Published &&
             (!job.JobRequisitionId.HasValue ||
-             !await _context.JobRequisitions.AnyAsync(item =>
-                 item.Id == job.JobRequisitionId.Value &&
-                 item.RecruiterId == recruiterId &&
-                 item.CompanyId == membership.CompanyId &&
-                 item.Status == JobRequisitionStatus.Approved)))
-            return (RecruiterJobResult.RequisitionNotApproved, null);
+             !await _context.JobRequisitions.AnyAsync(
+                 item =>
+                     item.Id ==
+                         job.JobRequisitionId.Value &&
+                     item.RecruiterId ==
+                         recruiterId &&
+                     item.CompanyId ==
+                         membership.CompanyId &&
+                     item.Status ==
+                         JobRequisitionStatus.Approved)))
+        {
+            return (
+                RecruiterJobResult.RequisitionNotApproved,
+                null
+            );
+        }
 
         job.Status = status;
         job.UpdatedAt = DateTime.UtcNow;
+
         await _context.SaveChangesAsync();
 
-        return await GetMineByIdAsync(recruiterId, job.Id);
+        return await GetMineByIdAsync(
+            recruiterId,
+            job.Id);
     }
 
-    public async Task<RecruiterJobResult> DeleteAsync(Guid recruiterId, Guid jobId)
+    public async Task<RecruiterJobResult> DeleteAsync(
+        Guid recruiterId,
+        Guid jobId)
     {
-        var membership = await GetMembershipAsync(recruiterId);
+        var membership =
+            await GetMembershipAsync(recruiterId);
+
         if (membership == null)
+        {
             return RecruiterJobResult.NoCompany;
+        }
+
         if (!membership.Company.IsActive)
+        {
             return RecruiterJobResult.CompanyInactive;
+        }
 
         var job = await _context.JobPostings
             .Include(item => item.Applications)
-            .FirstOrDefaultAsync(item => item.Id == jobId && item.CreatedByUserId == recruiterId);
+            .FirstOrDefaultAsync(item =>
+                item.Id == jobId &&
+                item.CreatedByUserId == recruiterId);
 
         if (job == null)
+        {
             return RecruiterJobResult.NotFound;
+        }
+
         if (job.Applications.Count > 0)
+        {
             return RecruiterJobResult.HasApplications;
+        }
 
         _context.JobPostings.Remove(job);
+
         await _context.SaveChangesAsync();
+
         return RecruiterJobResult.Success;
     }
 
-    private Task<CompanyMember?> GetMembershipAsync(Guid recruiterId)
+    private Task<CompanyMember?> GetMembershipAsync(
+        Guid recruiterId)
     {
         return _context.CompanyMembers
             .Include(member => member.Company)
             .FirstOrDefaultAsync(member =>
-                member.UserId == recruiterId && member.IsActive);
+                member.UserId == recruiterId &&
+                member.IsActive);
     }
 
-    private IQueryable<JobPosting> JobQuery(Guid recruiterId)
+    private IQueryable<JobPosting> JobQuery(
+        Guid recruiterId)
     {
         return _context.JobPostings
             .AsNoTracking()
             .Include(job => job.CompanyEntity)
             .Include(job => job.RequiredSkills)
-                .ThenInclude(requiredSkill => requiredSkill.Skill)
+                .ThenInclude(
+                    requiredSkill =>
+                        requiredSkill.Skill)
             .Include(job => job.Applications)
-            .Where(job => job.CreatedByUserId == recruiterId);
+            .Where(job =>
+                job.CreatedByUserId == recruiterId);
     }
 
-    private async Task<List<Skill>?> GetValidSkillsAsync(IEnumerable<Guid> requestedIds)
+    private async Task<List<Skill>?> GetValidSkillsAsync(
+        IEnumerable<Guid> requestedIds)
     {
-        var ids = requestedIds.Distinct().ToList();
+        var ids = requestedIds
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        // A job posting must contain at least one
+        // valid active skill. Without required skills,
+        // candidate matching has no meaningful basis.
+        if (ids.Count == 0)
+        {
+            return null;
+        }
+
         var skills = await _context.Skills
-            .Where(skill => ids.Contains(skill.Id) && skill.IsActive)
+            .Where(skill =>
+                ids.Contains(skill.Id) &&
+                skill.IsActive)
             .ToListAsync();
 
-        return skills.Count == ids.Count ? skills : null;
+        return skills.Count == ids.Count
+            ? skills
+            : null;
     }
 
-    private static RecruiterJobPostingResponse ToResponse(JobPosting job)
+    private static RecruiterJobPostingResponse ToResponse(
+        JobPosting job)
     {
         return new RecruiterJobPostingResponse
         {
             Id = job.Id,
-            JobRequisitionId = job.JobRequisitionId,
+            JobRequisitionId =
+                job.JobRequisitionId,
             Title = job.Title,
-            Company = job.CompanyEntity?.Name ?? job.Company,
-            CompanyLogoUrl = job.CompanyEntity?.LogoUrl,
+            Company =
+                job.CompanyEntity?.Name ??
+                job.Company,
+            CompanyLogoUrl =
+                job.CompanyEntity?.LogoUrl,
             Location = job.Location,
-            Description = job.Description,
-            EmploymentType = job.EmploymentType.ToString(),
-            WorkMode = job.WorkMode.ToString(),
-            Responsibilities = job.Responsibilities,
-            Requirements = job.Requirements,
-            ExperienceLevel = job.ExperienceLevel.ToString(),
-            MinExperienceYears = job.MinExperienceYears,
-            MinSalary = job.MinSalary,
-            MaxSalary = job.MaxSalary,
-            Currency = job.Currency,
-            ApplicationDeadline = job.ApplicationDeadline,
-            Status = job.Status.ToString(),
-            ApplicantCount = job.Applications.Count,
-            CreatedAt = job.CreatedAt,
-            RequiredSkills = job.RequiredSkills
-                .OrderBy(item => item.Skill.Name)
-                .Select(item => new RecruiterJobSkillResponse
-                {
-                    Id = item.SkillId,
-                    Name = item.Skill.Name
-                })
-                .ToList()
+            Description =
+                job.Description,
+            EmploymentType =
+                job.EmploymentType.ToString(),
+            WorkMode =
+                job.WorkMode.ToString(),
+            Responsibilities =
+                job.Responsibilities,
+            Requirements =
+                job.Requirements,
+            ExperienceLevel =
+                job.ExperienceLevel.ToString(),
+            MinExperienceYears =
+                job.MinExperienceYears,
+            MinSalary =
+                job.MinSalary,
+            MaxSalary =
+                job.MaxSalary,
+            Currency =
+                job.Currency,
+            ApplicationDeadline =
+                job.ApplicationDeadline,
+            Status =
+                job.Status.ToString(),
+            ApplicantCount =
+                job.Applications.Count,
+            CreatedAt =
+                job.CreatedAt,
+            RequiredSkills =
+                job.RequiredSkills
+                    .OrderBy(
+                        item => item.Skill.Name)
+                    .Select(
+                        item =>
+                            new RecruiterJobSkillResponse
+                            {
+                                Id =
+                                    item.SkillId,
+                                Name =
+                                    item.Skill.Name
+                            })
+                    .ToList()
         };
     }
 
-    // HR-approved position, location, employment, experience and salary are fixed.
-    // The recruiter may still write the public description, deadline and required skills.
-    private static bool MatchesApproval(string title, string location,
-        ValidatedJobDetails details, decimal? minSalary, decimal? maxSalary,
+    // HR-approved position, location, employment,
+    // experience and salary are fixed.
+    // The recruiter may still write the public
+    // description, deadline and required skills.
+    private static bool MatchesApproval(
+        string title,
+        string location,
+        ValidatedJobDetails details,
+        decimal? minSalary,
+        decimal? maxSalary,
         JobRequisition approved)
     {
-        return string.Equals(title.Trim(), approved.PositionTitle.Trim(), StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(location.Trim(), approved.Location.Trim(), StringComparison.OrdinalIgnoreCase) &&
-            details.EmploymentType == approved.EmploymentType &&
-            details.WorkMode == approved.WorkMode &&
-            details.ExperienceLevel == approved.ExperienceLevel &&
-            details.MinExperienceYears == (approved.EmploymentType == EmploymentType.Internship
-                ? null : approved.MinExperienceYears) &&
-            minSalary == approved.MinSalary && maxSalary == approved.MaxSalary &&
-            string.Equals(details.Currency, minSalary.HasValue || maxSalary.HasValue
-                ? approved.Currency.Trim().ToUpperInvariant() : null, StringComparison.Ordinal);
+        return
+            string.Equals(
+                title.Trim(),
+                approved.PositionTitle.Trim(),
+                StringComparison.OrdinalIgnoreCase)
+
+            && string.Equals(
+                location.Trim(),
+                approved.Location.Trim(),
+                StringComparison.OrdinalIgnoreCase)
+
+            && details.EmploymentType ==
+                approved.EmploymentType
+
+            && details.WorkMode ==
+                approved.WorkMode
+
+            && details.ExperienceLevel ==
+                approved.ExperienceLevel
+
+            && details.MinExperienceYears ==
+                (
+                    approved.EmploymentType ==
+                        EmploymentType.Internship
+                        ? null
+                        : approved.MinExperienceYears
+                )
+
+            && minSalary ==
+                approved.MinSalary
+
+            && maxSalary ==
+                approved.MaxSalary
+
+            && string.Equals(
+                details.Currency,
+                minSalary.HasValue ||
+                maxSalary.HasValue
+                    ? (approved.Currency ?? string.Empty)
+                        .Trim()
+                        .ToUpperInvariant()
+                    : null,
+                StringComparison.Ordinal);
     }
 
     private static RecruiterJobResult ValidateJobDetails(
@@ -385,41 +724,115 @@ public class RecruiterJobPostingService
     {
         details = default;
 
-        if (!Enum.TryParse<EmploymentType>(employmentTypeValue, true, out var employmentType) ||
+        if (!Enum.TryParse<EmploymentType>(
+                employmentTypeValue,
+                true,
+                out var employmentType) ||
             !Enum.IsDefined(employmentType))
+        {
             return RecruiterJobResult.InvalidEmploymentType;
-        if (!Enum.TryParse<WorkMode>(workModeValue, true, out var workMode) ||
+        }
+
+        if (!Enum.TryParse<WorkMode>(
+                workModeValue,
+                true,
+                out var workMode) ||
             !Enum.IsDefined(workMode))
+        {
             return RecruiterJobResult.InvalidWorkMode;
-        if (!Enum.TryParse<ExperienceLevel>(experienceLevelValue, true, out var experienceLevel) ||
+        }
+
+        if (!Enum.TryParse<ExperienceLevel>(
+                experienceLevelValue,
+                true,
+                out var experienceLevel) ||
             !Enum.IsDefined(experienceLevel))
+        {
             return RecruiterJobResult.InvalidExperienceLevel;
+        }
 
-        var isInternship = employmentType == EmploymentType.Internship;
-        if (!isInternship && experienceLevel != ExperienceLevel.Entry &&
+        var isInternship =
+            employmentType ==
+            EmploymentType.Internship;
+
+        // Experienced roles must define a minimum
+        // experience requirement.
+        if (!isInternship &&
+            experienceLevel !=
+                ExperienceLevel.Entry &&
             minExperienceYears == null)
+        {
             return RecruiterJobResult.InvalidExperience;
+        }
 
-        if (minSalary.HasValue && maxSalary.HasValue && minSalary > maxSalary)
+        // Salary range must never be inverted.
+        if (minSalary.HasValue &&
+            maxSalary.HasValue &&
+            minSalary > maxSalary)
+        {
             return RecruiterJobResult.InvalidSalary;
+        }
 
-        var hasSalary = minSalary.HasValue || maxSalary.HasValue;
-        var normalizedCurrency = hasSalary ? currency?.Trim().ToUpperInvariant() : null;
-        if (hasSalary && string.IsNullOrWhiteSpace(normalizedCurrency))
+        var hasSalary =
+            minSalary.HasValue ||
+            maxSalary.HasValue;
+
+        var normalizedCurrency =
+            hasSalary
+                ? currency?.Trim().ToUpperInvariant()
+                : null;
+
+        // Currency is mandatory whenever salary is entered.
+        if (hasSalary &&
+            string.IsNullOrWhiteSpace(
+                normalizedCurrency))
+        {
             return RecruiterJobResult.InvalidSalary;
+        }
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        if (!applicationDeadline.HasValue || applicationDeadline.Value < today)
+        // Deadline must be today or later.
+        var today =
+            DateOnly.FromDateTime(
+                DateTime.UtcNow);
+
+        if (!applicationDeadline.HasValue ||
+            applicationDeadline.Value < today)
+        {
             return RecruiterJobResult.InvalidDeadline;
+        }
 
         details = new ValidatedJobDetails(
             employmentType,
             workMode,
             experienceLevel,
-            isInternship ? null : minExperienceYears,
+            isInternship
+                ? null
+                : minExperienceYears,
             normalizedCurrency);
 
         return RecruiterJobResult.Success;
+    }
+
+    private static bool IsValidStatusTransition(
+        JobPostingStatus current,
+        JobPostingStatus requested)
+    {
+        return current switch
+        {
+            JobPostingStatus.Draft =>
+                requested == JobPostingStatus.Draft ||
+                requested == JobPostingStatus.Published ||
+                requested == JobPostingStatus.Closed,
+
+            JobPostingStatus.Published =>
+                requested == JobPostingStatus.Published ||
+                requested == JobPostingStatus.Closed,
+
+            JobPostingStatus.Closed =>
+                requested == JobPostingStatus.Closed,
+
+            _ => false
+        };
     }
 
     private readonly record struct ValidatedJobDetails(
