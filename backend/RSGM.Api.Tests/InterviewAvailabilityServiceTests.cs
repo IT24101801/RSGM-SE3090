@@ -228,4 +228,76 @@ public class InterviewAvailabilityServiceTests
 
         Assert.False(result);
     }
+
+    [Fact]
+public async Task IsSlotAvailable_WhenPanelistIsBusy_ReturnsFalse()
+{
+    using var db = CreateDb();
+    var service = CreateService(db);
+
+    var companyId = Guid.NewGuid();
+    var panelistId = Guid.NewGuid();
+    var recruiterId = Guid.NewGuid();
+    var hrManagerId = Guid.NewGuid();
+
+    var start =
+        NextWeekdayAt(10).UtcDateTime;
+
+    db.UserBusyTimes.Add(
+        new UserBusyTime
+        {
+            UserId = panelistId,
+            Title = "Panelist meeting",
+            StartsAt = start,
+            EndsAt = start.AddHours(1)
+        });
+
+    await db.SaveChangesAsync();
+
+    var result =
+        await service.IsSlotAvailableAsync(
+            companyId,
+            panelistId,
+            recruiterId,
+            hrManagerId,
+            start);
+
+    Assert.False(result);
+}
+
+[Fact]
+public async Task IsSlotAvailable_WhenHrManagerIsBusy_ReturnsFalse()
+{
+    using var db = CreateDb();
+    var service = CreateService(db);
+
+    var companyId = Guid.NewGuid();
+    var panelistId = Guid.NewGuid();
+    var recruiterId = Guid.NewGuid();
+    var hrManagerId = Guid.NewGuid();
+
+    var start =
+        NextWeekdayAt(10).UtcDateTime;
+
+    db.UserBusyTimes.Add(
+        new UserBusyTime
+        {
+            UserId = hrManagerId,
+            Title = "HR meeting",
+            StartsAt = start,
+            EndsAt = start.AddHours(1)
+        });
+
+    await db.SaveChangesAsync();
+
+    var result =
+        await service.IsSlotAvailableAsync(
+            companyId,
+            panelistId,
+            recruiterId,
+            hrManagerId,
+            start);
+
+    Assert.False(result);
+}
 }
