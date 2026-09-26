@@ -8,6 +8,7 @@ using Microsoft.OpenApi.Models;
 using RSGM.Api.Data;
 using RSGM.Api.Models.Entities;
 using RSGM.Api.Services;
+using RSGM.Api.Services.Agents.SkillMatchingShortlisting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -91,6 +92,9 @@ var connectionString =
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
 
+builder.Services.AddSkillMatchingShortlistingAgent(
+    builder.Configuration,
+    connectionString);
 
 // ======================================================
 // 4. ASP.NET CORE IDENTITY
