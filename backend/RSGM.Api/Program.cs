@@ -244,6 +244,20 @@ builder.Services.AddScoped<JobPostingService>();
 
 builder.Services.AddScoped<JobSeekerApplicationService>();
 
+builder.Services.AddHttpClient<RSGM.Api.Agents.Coordinator.ApplicationReadinessService>(client =>
+{
+    var baseUrl = builder.Configuration["AgentService:BaseUrl"] ?? "http://127.0.0.1:8001";
+    client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
+builder.Services.AddHttpClient<RSGM.Api.Agents.Coordinator.JobSeekerCareerWorkflowService>(client =>
+{
+    var baseUrl = builder.Configuration["AgentService:BaseUrl"] ?? "http://127.0.0.1:8001";
+    client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(45);
+});
+
 builder.Services.AddScoped<JobSeekerDashboardService>();
 
 builder.Services.AddScoped<JobSeekerAccountService>();
