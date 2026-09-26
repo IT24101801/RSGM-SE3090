@@ -1,3 +1,4 @@
+import logging
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -18,7 +19,7 @@ from career_schemas import (
 )
 from tools.career_validation import validate_career_result
 
-
+logger = logging.getLogger(__name__)
 class CareerState(TypedDict, total=False):
     request: CareerWorkflowRequest
     plan: list[PlanStep]
@@ -103,11 +104,18 @@ def build_graph():
 CAREER_GRAPH = build_graph()
 
 
-def run_career_workflow(request: CareerWorkflowRequest) -> CareerWorkflowResponse:
+def run_career_workflow(
+    request: CareerWorkflowRequest
+) -> CareerWorkflowResponse:
     try:
-        state = CAREER_GRAPH.invoke({"request": request, "steps": []})
+        state = CAREER_GRAPH.invoke({
+            "request": request,
+            "steps": []
+        })
+
         validation = state["validation"]
         matches = state.get("job_matches", [])
+
         if not validation.valid:
             return CareerWorkflowResponse(
                 workflow_id=request.workflow_id,
@@ -120,7 +128,10 @@ def run_career_workflow(request: CareerWorkflowRequest) -> CareerWorkflowRespons
                 selected_job_id=matches[0].job_id if matches else None,
                 validation=validation,
                 steps=state.get("steps", []),
-                error_summary="Deterministic validation rejected the agent output.",
+                error_summary=(
+                    "Deterministic validation rejected "
+                    "the agent output."
+                ),
             )
 
         if not matches:
@@ -135,7 +146,10 @@ def run_career_workflow(request: CareerWorkflowRequest) -> CareerWorkflowRespons
                 selected_job_id=None,
                 validation=validation,
                 steps=state.get("steps", []),
-                error_summary="No published jobs were available for recommendation.",
+                error_summary=(
+                    "No published jobs were available "
+                    "for recommendation."
+                ),
             )
 
         return CareerWorkflowResponse(
@@ -148,11 +162,23 @@ def run_career_workflow(request: CareerWorkflowRequest) -> CareerWorkflowRespons
             selected_job_id=matches[0].job_id,
             career_advice=state.get("career_advice"),
             validation=validation,
-            steps=[*state.get("steps", []),
-                   CareerStep(agent="HumanApproval", action="AwaitJobSeekerDecision", status="Pending")],
+            steps=[
+                *state.get("steps", []),
+                CareerStep(
+                    agent="HumanApproval",
+                    action="AwaitJobSeekerDecision",
+                    status="Pending",
+                ),
+            ],
         )
-    except Exception:
-        # Never leak API keys, prompts, candidate data, or stack traces to ASP.NET.
+
+    except Exception as exc:
+        logger.exception(
+            "Career workflow failed for workflow %s: %s",
+            request.workflow_id,
+            exc,
+        )
+
         return CareerWorkflowResponse(
             workflow_id=request.workflow_id,
             status="SafelyFailed",
@@ -162,7 +188,20 @@ def run_career_workflow(request: CareerWorkflowRequest) -> CareerWorkflowRespons
             job_matches=[],
             selected_job_id=None,
             career_advice=None,
-            validation=ValidationResult(valid=False, errors=["Agent workflow execution failed."], checks=[]),
-            steps=[CareerStep(agent="WorkflowCoordinator", action="RunCareerWorkflow", status="Failed")],
-            error_summary="The AI workflow could not finish safely. Check the agent-service logs and configuration.",
+            validation=ValidationResult(
+                valid=False,
+                errors=["Agent workflow execution failed."],
+                checks=[],
+            ),
+            steps=[
+                CareerStep(
+                    agent="WorkflowCoordinator",
+                    action="RunCareerWorkflow",
+                    status="Failed",
+                )
+            ],
+            error_summary=(
+                "The AI workflow could not finish safely. "
+                "Check the agent-service logs and configuration."
+            ),
         )
