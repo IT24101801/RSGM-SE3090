@@ -327,10 +327,34 @@ public class PanelistWorkflowController : ControllerBase
     {
         var rows = await _db.Interviews.AsNoTracking()
             .Where(i => i.Application.UserId == Me)
-            .Include(i => i.Application).ThenInclude(a => a.JobPosting)
+            .Include(i => i.Application).ThenInclude(a => a.JobPosting).ThenInclude(j => j.CompanyEntity)
+            .Include(i => i.Panelist)
+            .Include(i => i.Recruiter)
+            .Include(i => i.HrManager)
             .OrderByDescending(i => i.ScheduledAt).ToListAsync();
-        return Ok(rows.Select(i => new { i.Id, Job = i.Application.JobPosting.Title,
-            i.ScheduledAt, i.Type, i.LocationOrLink, Status = i.Status.ToString() }));
+
+        return Ok(rows.Select(i => new
+        {
+            i.Id,
+            Job = i.Application.JobPosting.Title,
+            Company = i.Application.JobPosting.CompanyEntity != null
+                ? i.Application.JobPosting.CompanyEntity.Name
+                : i.Application.JobPosting.Company,
+            CompanyLogoUrl = i.Application.JobPosting.CompanyEntity != null
+                ? i.Application.JobPosting.CompanyEntity.LogoUrl
+                : null,
+            JobLocation = i.Application.JobPosting.Location,
+            EmploymentType = i.Application.JobPosting.EmploymentType.ToString(),
+            WorkMode = i.Application.JobPosting.WorkMode.ToString(),
+            ExperienceLevel = i.Application.JobPosting.ExperienceLevel.ToString(),
+            i.ScheduledAt,
+            i.Type,
+            i.LocationOrLink,
+            Status = i.Status.ToString(),
+            PanelistName = i.Panelist.FullName,
+            RecruiterName = i.Recruiter.FullName,
+            HrManagerName = i.HrManager != null ? i.HrManager.FullName : null
+        }));
     }
 
     [HttpPost("jobseeker/interviews/{id:guid}/confirm")]

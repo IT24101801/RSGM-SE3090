@@ -613,6 +613,13 @@ public class HiringWorkflowController : ControllerBase
             o.Id, o.ApplicationId, Job = o.Application.JobPosting.Title,
             Company = o.Application.JobPosting.CompanyEntity != null
                 ? o.Application.JobPosting.CompanyEntity.Name : o.Application.JobPosting.Company,
+            CompanyLogoUrl = o.Application.JobPosting.CompanyEntity != null
+                ? o.Application.JobPosting.CompanyEntity.LogoUrl : null,
+            JobLocation = o.Application.JobPosting.Location,
+            EmploymentType = o.Application.JobPosting.EmploymentType.ToString(),
+            WorkMode = o.Application.JobPosting.WorkMode.ToString(),
+            ExperienceLevel = o.Application.JobPosting.ExperienceLevel.ToString(),
+            JobDescription = o.Application.JobPosting.Description,
             o.Salary, o.Currency, o.StartDate, o.Notes,
             Status = o.Status.ToString(), o.ReviewedAt, o.RespondedAt,
             o.CandidateDeclineReason
