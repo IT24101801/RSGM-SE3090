@@ -108,9 +108,7 @@ function MyApplicationsPage() {
               >
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                   <div className="flex items-start gap-4">
-                    <div className="w-11 h-11 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
-                      <Briefcase size={20} className="text-violet-600" />
-                    </div>
+                    <CompanyLogo application={a} />
 
                     <div>
                       <p className="font-semibold text-neutral-900">{a.jobTitle}</p>
@@ -199,6 +197,24 @@ function MyApplicationsPage() {
           onClose={() => setWithdrawing(null)}
         />
       )}
+    </div>
+  );
+}
+
+function CompanyLogo({ application }) {
+  if (application.companyLogoUrl) {
+    return (
+      <img
+        src={application.companyLogoUrl}
+        alt={`${application.company} logo`}
+        className="w-11 h-11 rounded-2xl border border-neutral-100 bg-white object-contain p-1 shrink-0"
+      />
+    );
+  }
+
+  return (
+    <div className="w-11 h-11 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
+      <Briefcase size={20} className="text-violet-600" />
     </div>
   );
 }
