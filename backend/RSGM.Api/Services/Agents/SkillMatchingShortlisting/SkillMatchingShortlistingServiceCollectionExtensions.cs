@@ -1,94 +1,51 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using RSGM.Api.Data;
+using Microsoft.Extensions.Options;
+using RSGM.Api.Agents.SkillMatchingShortlisting;
+using RSGM.Api.Models;
 using RSGM.Api.Tools.SkillMatchingShortlisting;
 
 namespace RSGM.Api.Services.Agents.SkillMatchingShortlisting;
 
-/// <summary>
-/// Dependency-injection registration for the isolated
-/// Skill Matching & Shortlisting Agent.
-///
-/// Program.cs will call this extension later.
-/// </summary>
 public static class SkillMatchingShortlistingServiceCollectionExtensions
 {
-    public static IServiceCollection
-        AddSkillMatchingShortlistingAgent(
-            this IServiceCollection services,
-            IConfiguration configuration,
-            string connectionString)
+    public static IServiceCollection AddSkillMatchingShortlistingAgent(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        string connectionString)
     {
-        if (string.IsNullOrWhiteSpace(
-                connectionString))
-        {
-            throw new ArgumentException(
-                "Database connection string is required.",
-                nameof(connectionString));
-        }
-
-        // =====================================================
-        // Groq configuration
-        // =====================================================
-
         services.Configure<GroqOptions>(
             configuration.GetSection("Groq"));
 
-        services.AddHttpClient<GroqLlmService>(
-            client =>
-            {
-                var timeoutSeconds =
-                    configuration.GetValue<int?>(
-                        "Groq:TimeoutSeconds")
-                    ?? 60;
+        services.AddDbContext<SkillMatchingShortlistingDbContext>(options =>
+            options.UseNpgsql(
+                connectionString,
+                npgsql => npgsql.MigrationsHistoryTable(
+                    "__SkillMatchingAgentMigrationsHistory")));
 
-                client.Timeout =
-                    TimeSpan.FromSeconds(
-                        Math.Clamp(
-                            timeoutSeconds,
-                            1,
-                            300));
-            });
+        services.AddHttpClient<SkillMatchingGroqLlmService>((serviceProvider, client) =>
+        {
+            var options = serviceProvider
+                .GetRequiredService<IOptions<GroqOptions>>()
+                .Value;
 
-        // =====================================================
-        // Isolated Agent workflow database
-        // =====================================================
+            client.Timeout = TimeSpan.FromSeconds(
+                Math.Max(5, options.TimeoutSeconds));
+        });
 
-        services.AddDbContext<
-            SkillMatchingShortlistingDbContext>(
-            options =>
-                options.UseNpgsql(
-                    connectionString,
-                    npgsql =>
-                        npgsql.MigrationsHistoryTable(
-                            "__SkillMatchingShortlistingMigrationsHistory")));
+        services.AddSingleton<SkillMatchingAgentToolRegistry>();
 
-        // =====================================================
-        // Controlled tools
-        // =====================================================
+        services.AddScoped<GetSkillMatchingJobRequirementsTool>();
+        services.AddScoped<GetEligibleSkillMatchingCandidatesTool>();
+        services.AddScoped<CalculateSkillMatchTool>();
+        services.AddScoped<GenerateSkillGapTool>();
+        services.AddScoped<ValidateSkillMatchingShortlistTool>();
 
-        services.AddScoped<
-            GetSkillMatchingJobRequirementsTool>();
-
-        services.AddScoped<
-            GetEligibleSkillMatchingCandidatesTool>();
-
-        services.AddScoped<
-            CalculateSkillMatchTool>();
-
-        services.AddScoped<
-            GenerateSkillGapTool>();
-
-        services.AddScoped<
-            ValidateSkillMatchingShortlistTool>();
-
-        // =====================================================
-        // Central allow-list
-        // =====================================================
-
-        services.AddScoped<
-            SkillMatchingAgentToolRegistry>();
+        services.AddScoped<SkillMatchingJobRequirementsAgent>();
+        services.AddScoped<SkillMatchingCandidateRetrievalAgent>();
+        services.AddScoped<SkillMatchingAnalysisAgent>();
+        services.AddScoped<SkillMatchingShortlistValidationAgent>();
+        services.AddScoped<SkillMatchingShortlistingOrchestrator>();
+        services.AddScoped<SkillMatchingShortlistDispatchService>();
 
         return services;
     }

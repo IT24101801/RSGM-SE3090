@@ -1,235 +1,162 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using RSGM.Api.Data;
-using RSGM.Api.Models.DTOs.Agents;
 using RSGM.Api.Models.Entities;
 
 namespace RSGM.Api.Tools.SkillMatchingShortlisting;
 
-/// <summary>
-/// Performs deterministic business-rule validation of an
-/// AI-generated shortlist.
-///
-/// This tool never changes candidate status and never
-/// dispatches the shortlist.
-/// </summary>
+public sealed class SkillMatchingShortlistValidationResult
+{
+    public bool Valid { get; init; }
+    public string Message { get; init; } = string.Empty;
+    public IReadOnlyList<Guid> CandidateIds { get; init; } =
+        Array.Empty<Guid>();
+}
+
 public sealed class ValidateSkillMatchingShortlistTool
-    : ISkillMatchingShortlistingTool
 {
     private readonly ApplicationDbContext _db;
+    private readonly SkillMatchingAgentToolRegistry _registry;
 
     public ValidateSkillMatchingShortlistTool(
-        ApplicationDbContext db)
+        ApplicationDbContext db,
+        SkillMatchingAgentToolRegistry registry)
     {
         _db = db;
+        _registry = registry;
     }
 
-    public string Name =>
-        "ValidateSkillMatchingShortlist";
-
-    public string Description =>
-        "Validates recruiter ownership, job status, approved headcount, " +
-        "candidate eligibility, duplicate candidates, and previous dispatch.";
-
-    public IReadOnlySet<string> AllowedAgents =>
-        new HashSet<string>(
-            new[]
-            {
-                SkillMatchingAgentRoleNames.ShortlistValidation
-            },
-            StringComparer.Ordinal);
-
-    public async Task<object> ExecuteAsync(
+    public async Task<SkillMatchingShortlistValidationResult> ExecuteAsync(
         Guid recruiterId,
-        JsonElement arguments,
-        CancellationToken cancellationToken)
+        Guid jobId,
+        IReadOnlyList<Guid> applicationIds,
+        Guid panelistId,
+        CancellationToken cancellationToken = default)
     {
-        var args =
-            DeserializeArguments(arguments);
-
-        var errors =
-            new List<string>();
-
-        if (args.JobPostingId == Guid.Empty)
-        {
-            errors.Add(
-                "A valid JobPostingId is required.");
-
-            return new SkillMatchingValidationResult(
-                false,
-                errors);
-        }
-
-        var applicationIds =
-            args.ApplicationIds
-                .Where(
-                    id => id != Guid.Empty)
-                .Distinct()
-                .ToList();
+        _registry.AssertAllowed(
+            "SkillMatchingShortlistValidationAgent",
+            "ValidateSkillMatchingShortlistTool");
 
         if (applicationIds.Count == 0)
         {
-            errors.Add(
-                "At least one candidate must be proposed.");
+            return Invalid("At least one candidate is required.");
         }
 
-        if (errors.Count > 0)
+        if (applicationIds.Count != applicationIds.Distinct().Count())
         {
-            return new SkillMatchingValidationResult(
-                false,
-                errors);
+            return Invalid("The shortlist contains duplicate applications.");
         }
 
-        var job =
-            await _db.JobPostings
-                .AsNoTracking()
-                .Include(
-                    item => item.JobRequisition)
-                .FirstOrDefaultAsync(
-                    item =>
-                        item.Id == args.JobPostingId &&
-                        item.CreatedByUserId == recruiterId &&
-                        item.CompanyId != null &&
-                        item.CompanyEntity != null &&
-                        item.CompanyEntity.IsActive &&
-                        _db.CompanyMembers.Any(
-                            member =>
-                                member.UserId == recruiterId &&
-                                member.IsActive &&
-                                member.CompanyId == item.CompanyId),
-                    cancellationToken);
+        var job = await _db.JobPostings
+            .AsNoTracking()
+            .Include(x => x.JobRequisition)
+            .FirstOrDefaultAsync(
+                x => x.Id == jobId &&
+                     x.CreatedByUserId == recruiterId &&
+                     x.CompanyId != null &&
+                     x.CompanyEntity != null &&
+                     x.CompanyEntity.IsActive,
+                cancellationToken);
 
         if (job == null)
         {
-            errors.Add(
-                "The job posting is not accessible to the recruiter.");
-
-            return new SkillMatchingValidationResult(
-                false,
-                errors);
+            return Invalid("The job posting is unavailable.");
         }
 
         if (job.Status != JobPostingStatus.Published)
         {
-            errors.Add(
-                "The job posting must be published.");
+            return Invalid("The job posting is not published.");
         }
 
-        if (job.JobRequisition == null)
+        if (job.JobRequisition == null ||
+            job.JobRequisition.Status != JobRequisitionStatus.Approved)
         {
-            errors.Add(
-                "The job posting has no linked requisition.");
+            return Invalid("The job does not have an approved requisition.");
         }
-        else if (job.JobRequisition.Status !=
-                 JobRequisitionStatus.Approved)
+
+        if (applicationIds.Count > job.JobRequisition.Headcount)
         {
-            errors.Add(
-                "The linked requisition is not approved.");
+            return Invalid(
+                "The proposed shortlist exceeds the approved requisition headcount.");
         }
 
-        if (job.JobRequisition != null &&
-            applicationIds.Count >
-                job.JobRequisition.Headcount)
+        if (await _db.ShortlistDispatches.AnyAsync(
+                x => x.JobPostingId == jobId,
+                cancellationToken))
         {
-            errors.Add(
-                $"The proposed shortlist contains " +
-                $"{applicationIds.Count} candidate(s), " +
-                $"exceeding the approved headcount of " +
-                $"{job.JobRequisition.Headcount}.");
+            return Invalid("A shortlist has already been sent for this job.");
         }
 
-        var dispatchExists =
-            await _db.ShortlistDispatches
-                .AsNoTracking()
-                .AnyAsync(
-                    dispatch =>
-                        dispatch.JobPostingId ==
-                            args.JobPostingId,
-                    cancellationToken);
+        var panelistIsValid = await _db.CompanyMembers
+            .Where(member =>
+                member.CompanyId == job.CompanyId &&
+                member.UserId == panelistId &&
+                member.IsActive &&
+                member.Company.IsActive &&
+                member.User.IsActive)
+            .Join(
+                _db.UserRoles,
+                member => member.UserId,
+                userRole => userRole.UserId,
+                (member, userRole) => userRole)
+            .Join(
+                _db.Roles,
+                userRole => userRole.RoleId,
+                role => role.Id,
+                (userRole, role) => role.Name)
+            .AnyAsync(
+                roleName => roleName == Common.AppRoles.HiringPanelist,
+                cancellationToken);
 
-        if (dispatchExists)
+        if (!panelistIsValid)
         {
-            errors.Add(
-                "A shortlist has already been sent for this job.");
+            return Invalid(
+                "Select an active hiring panelist from the same company.");
         }
 
-        var applications =
-            await _db.Applications
-                .AsNoTracking()
-                .Where(
-                    application =>
-                        applicationIds.Contains(
-                            application.Id))
-                .ToListAsync(
-                    cancellationToken);
+        var applications = await _db.Applications
+            .Where(x =>
+                x.JobPostingId == jobId &&
+                applicationIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
 
-        var foundIds =
-            applications
-                .Select(
-                    application =>
-                        application.Id)
-                .ToHashSet();
-
-        foreach (var applicationId in applicationIds)
+        if (applications.Count != applicationIds.Count)
         {
-            if (!foundIds.Contains(applicationId))
-            {
-                errors.Add(
-                    $"Application {applicationId} was not found.");
-            }
+            return Invalid(
+                "One or more proposed candidates do not belong to this job.");
         }
 
-        foreach (var application in applications)
+        if (applications.Any(x =>
+                x.Status != ApplicationStatus.UnderReview))
         {
-            if (application.JobPostingId !=
-                args.JobPostingId)
-            {
-                errors.Add(
-                    $"Application {application.Id} " +
-                    "does not belong to the selected job.");
-            }
-
-            if (application.Status !=
-                ApplicationStatus.UnderReview)
-            {
-                errors.Add(
-                    $"Application {application.Id} " +
-                    "is not in UnderReview status.");
-            }
+            return Invalid(
+                "All AI-recommended candidates must still be under recruiter review.");
         }
 
-        return new SkillMatchingValidationResult(
-            errors.Count == 0,
-            errors);
+        if (!await _db.CompanyMembers.AnyAsync(
+                member =>
+                    member.UserId == recruiterId &&
+                    member.CompanyId == job.CompanyId &&
+                    member.IsActive &&
+                    member.Company.IsActive,
+                cancellationToken))
+        {
+            return Invalid(
+                "The recruiter is not an active member of the company.");
+        }
+
+        return new SkillMatchingShortlistValidationResult
+        {
+            Valid = true,
+            Message = "Shortlist passes deterministic validation.",
+            CandidateIds = applicationIds.ToArray()
+        };
     }
 
-    private static ToolArguments DeserializeArguments(
-        JsonElement arguments)
-    {
-        if (arguments.ValueKind != JsonValueKind.Object)
+    private static SkillMatchingShortlistValidationResult Invalid(
+        string message) =>
+        new()
         {
-            throw new ArgumentException(
-                "Tool arguments must be a JSON object.");
-        }
-
-        var result =
-            JsonSerializer.Deserialize<ToolArguments>(
-                arguments.GetRawText(),
-                new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-
-        return result
-            ?? throw new ArgumentException(
-                "Invalid ValidateSkillMatchingShortlist arguments.");
-    }
-
-    private sealed class ToolArguments
-    {
-        public Guid JobPostingId { get; set; }
-
-        public List<Guid> ApplicationIds { get; set; } =
-            new();
-    }
+            Valid = false,
+            Message = message
+        };
 }
