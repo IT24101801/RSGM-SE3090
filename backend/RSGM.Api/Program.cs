@@ -8,6 +8,7 @@ using Microsoft.OpenApi.Models;
 using RSGM.Api.Data;
 using RSGM.Api.Models.Entities;
 using RSGM.Api.Services;
+using RSGM.Api.Services.Agents.InterviewSchedulingCoordinationAgent;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -263,6 +264,10 @@ builder.Services.AddScoped<
     InterviewAvailabilityService>();
 
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+
+builder.Services.AddInterviewSchedulingCoordinationAgent(
+    builder.Configuration,
+    connectionString);
 
 
 
