@@ -16,6 +16,7 @@ appsettings.Development.json
 # Environment variables
 .env
 .env.*
+agent-service/.venv
 
 # Node
 node_modules/

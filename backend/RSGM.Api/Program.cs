@@ -9,6 +9,7 @@ using RSGM.Api.Data;
 using RSGM.Api.Models.Entities;
 using RSGM.Api.Services;
 using RSGM.Api.Services.Agents.SkillMatchingShortlisting;
+using RSGM.Api.Services.HrAgenticServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -248,6 +249,20 @@ builder.Services.AddScoped<JobPostingService>();
 
 builder.Services.AddScoped<JobSeekerApplicationService>();
 
+builder.Services.AddHttpClient<RSGM.Api.Agents.Coordinator.ApplicationReadinessService>(client =>
+{
+    var baseUrl = builder.Configuration["AgentService:BaseUrl"] ?? "http://127.0.0.1:8001";
+    client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
+builder.Services.AddHttpClient<RSGM.Api.Agents.Coordinator.JobSeekerCareerWorkflowService>(client =>
+{
+    var baseUrl = builder.Configuration["AgentService:BaseUrl"] ?? "http://127.0.0.1:8001";
+    client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(45);
+});
+
 builder.Services.AddScoped<JobSeekerDashboardService>();
 
 builder.Services.AddScoped<JobSeekerAccountService>();
@@ -263,7 +278,28 @@ builder.Services.AddScoped<RecruiterApplicantService>();
 
 builder.Services.AddScoped<JobRequisitionService>();
 
+builder.Services.AddScoped<
+    IInterviewAvailabilityService,
+    InterviewAvailabilityService>();
+
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+
+// ======================================================
+// 7.1 AGENTIC AI (HR FUNCTIONS - COMPONENT A)
+// ======================================================
+builder.Services.AddHttpClient<IHrAiCompletionService, HrGeminiOrFallbackAiService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
+builder.Services.AddScoped<IHrAgentTool, HrValidateRequisitionReadinessTool>();
+builder.Services.AddScoped<IHrAgentTool, HrRecommendRequisitionSkillsTool>();
+builder.Services.AddScoped<IHrAgentTool, HrAuditSalaryBenchmarkTool>();
+builder.Services.AddScoped<IHrAgentTool, HrGenerateApprovalSummaryTool>();
+builder.Services.AddScoped<IHrAgentTool, HrCreateApprovalRequestTool>();
+
+builder.Services.AddScoped<HrJobRequisitionAgent>();
+builder.Services.AddScoped<HrWorkflowCoordinator>();
 
 
 

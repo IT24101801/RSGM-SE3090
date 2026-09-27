@@ -52,6 +52,9 @@ public class ApplicationDbContext
     public DbSet<Application> Applications
         => Set<Application>();
 
+    public DbSet<AgentWorkflow> AgentWorkflows => Set<AgentWorkflow>();
+    public DbSet<JobSeekerAiWorkflow> JobSeekerAiWorkflows => Set<JobSeekerAiWorkflow>();
+
     public DbSet<Interview> Interviews => Set<Interview>();
     public DbSet<InterviewFeedback> InterviewFeedbacks => Set<InterviewFeedback>();
     public DbSet<Offer> Offers => Set<Offer>();
@@ -75,9 +78,59 @@ public class ApplicationDbContext
     public DbSet<JobRequisition> JobRequisitions 
         =>Set<JobRequisition>();
 
+    // ---------------------------------------------------------
+    // Agentic AI Subsystem (HR Functions)
+    // ---------------------------------------------------------
+    public DbSet<HrAgentWorkflow> HrAgentWorkflows => Set<HrAgentWorkflow>();
+    public DbSet<HrAgentWorkflowStep> HrAgentWorkflowSteps => Set<HrAgentWorkflowStep>();
+    public DbSet<HrApprovalRequest> HrApprovalRequests => Set<HrApprovalRequest>();
+    public DbSet<HrAuditLog> HrAuditLogs => Set<HrAuditLog>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<AgentWorkflow>(entity =>
+        {
+            entity.ToTable("AgentWorkflows");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Status).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.ReadinessStatus).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.SourceFingerprint).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.WarningsJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.StepsJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.NextStep).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.PolicyVersion).HasMaxLength(20).IsRequired();
+            entity.HasOne<Application>().WithMany().HasForeignKey(x => x.ApplicationId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.InitiatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(x => new { x.ApplicationId, x.StartedAt });
+        });
+
+        builder.Entity<JobSeekerAiWorkflow>(entity =>
+        {
+            entity.ToTable("JobSeekerAiWorkflows");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Objective).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.CurrentStep).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.PlanJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.ProfileAnalysisJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.JobMatchesJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.CareerAdviceJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.ValidationJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.StepsJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.ApprovalStatus).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.ApprovalComment).HasMaxLength(500);
+            entity.Property(x => x.FinalOutcomeJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.ErrorSummary).HasMaxLength(1000);
+            entity.Property(x => x.PolicyVersion).HasMaxLength(20).IsRequired();
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(x => new { x.UserId, x.StartedAt });
+            entity.HasIndex(x => new { x.Status, x.ApprovalStatus });
+        });
 
         // =====================================================
         // Skill
@@ -635,5 +688,130 @@ public class ApplicationDbContext
                     x => x.Status);
             }
         );
+
+        // =====================================================
+        // HrAgentWorkflow
+        // =====================================================
+        builder.Entity<HrAgentWorkflow>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Objective)
+                .IsRequired()
+                .HasMaxLength(500);
+
+            entity.Property(x => x.PlanJson)
+                .IsRequired();
+
+            entity.Property(x => x.ApprovalStatus)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            entity.Property(x => x.EntityName)
+                .HasMaxLength(100);
+
+            entity.HasOne(x => x.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(x => x.Status);
+            entity.HasIndex(x => x.EntityId);
+        });
+
+        // =====================================================
+        // HrAgentWorkflowStep
+        // =====================================================
+        builder.Entity<HrAgentWorkflowStep>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.AgentName)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.ToolName)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.HasOne(x => x.Workflow)
+                .WithMany(w => w.Steps)
+                .HasForeignKey(x => x.WorkflowId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(x => x.WorkflowId);
+            entity.HasIndex(x => x.StepNumber);
+        });
+
+        // =====================================================
+        // HrApprovalRequest
+        // =====================================================
+        builder.Entity<HrApprovalRequest>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.ActionType)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(x => x.EntityName)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(x => x.RequiredApproverRole)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            entity.Property(x => x.DecisionComment)
+                .HasMaxLength(2000);
+
+            entity.HasOne(x => x.Workflow)
+                .WithMany(w => w.ApprovalRequests)
+                .HasForeignKey(x => x.WorkflowId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.RequestedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.AssignedApproverUser)
+                .WithMany()
+                .HasForeignKey(x => x.AssignedApproverUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(x => x.WorkflowId);
+            entity.HasIndex(x => x.Decision);
+            entity.HasIndex(x => x.EntityId);
+        });
+
+        // =====================================================
+        // HrAuditLog
+        // =====================================================
+        builder.Entity<HrAuditLog>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Action)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(x => x.EntityType)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(x => x.Result)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasIndex(x => x.Timestamp);
+            entity.HasIndex(x => x.Action);
+            entity.HasIndex(x => x.EntityId);
+        });
     }
 }
