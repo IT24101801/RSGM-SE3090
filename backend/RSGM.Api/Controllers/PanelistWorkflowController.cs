@@ -115,90 +115,13 @@ public class PanelistWorkflowController : ControllerBase
             a.Status == ApplicationStatus.Shortlisted)
             .OrderBy(a => a.ShortlistRank).ThenBy(a => a.AppliedAt).ToListAsync();
         if (shortlisted.Count == 0) return Conflict(new { message = "Rank at least one shortlisted applicant first." });
-        
-        var dispatch = await _db.ShortlistDispatches
-            .Include(d => d.Candidates)
-            .FirstOrDefaultAsync(d => d.JobPostingId == jobId);
-
-        if (dispatch == null)
-        {
-            dispatch = new ShortlistDispatch
-            {
-                JobPostingId = jobId,
-                RecruiterId = Me,
-                PanelistId = request.PanelistId,
-                Candidates = shortlisted
-                    .Select((application, index) =>
-                        new ShortlistDispatchCandidate
-                        {
-                            ApplicationId = application.Id,
-                            Rank = index + 1
-                        })
-                    .ToList()
-            };
-
-            _db.ShortlistDispatches.Add(dispatch);
-        }
-        else
-        {
-            if (dispatch.PanelistId != request.PanelistId)
-            {
-                return Conflict(new
-                {
-                    message = "This shortlist is already assigned to another hiring panelist."
-                });
-            }
-
-            var activeApplicationIds = await _db.Applications
-                .Where(a =>
-                    a.JobPostingId == jobId &&
-                    (a.Status == ApplicationStatus.Shortlisted ||
-                    a.Status == ApplicationStatus.Interview ||
-                    a.Status == ApplicationStatus.Offer))
-                .Select(a => a.Id)
-                .ToListAsync();
-
-            var removedCandidates = dispatch.Candidates
-                .Where(c => !activeApplicationIds.Contains(c.ApplicationId))
-                .ToList();
-
-            if (removedCandidates.Count > 0)
-            {
-                _db.ShortlistDispatchCandidates.RemoveRange(
-                    removedCandidates
-                );
-            }
-
-            foreach (var candidate in shortlisted.Select(
-                        (application, index) => new
-                        {
-                            ApplicationId = application.Id,
-                            Rank = index + 1
-                        }))
-            {
-                var existingCandidate = dispatch.Candidates
-                    .FirstOrDefault(c =>
-                        c.ApplicationId == candidate.ApplicationId);
-
-                if (existingCandidate == null)
-                {
-                    dispatch.Candidates.Add(
-                        new ShortlistDispatchCandidate
-                        {
-                            ApplicationId = candidate.ApplicationId,
-                            Rank = candidate.Rank
-                        });
-                }
-                else
-                {
-                    existingCandidate.Rank = candidate.Rank;
-                }
-            }
-
-            dispatch.SubmittedAt = DateTime.UtcNow;
-        }
-
-
+        if (await _db.ShortlistDispatches.AnyAsync(d => d.JobPostingId == jobId))
+            return Conflict(new { message = "This shortlist has already been sent." });
+        var dispatch = new ShortlistDispatch { JobPostingId = jobId, RecruiterId = Me,
+            PanelistId = request.PanelistId,
+            Candidates = shortlisted.Select((a, i) => new ShortlistDispatchCandidate {
+                ApplicationId = a.Id, Rank = i + 1 }).ToList() };
+        _db.ShortlistDispatches.Add(dispatch);
         Notify(request.PanelistId, Guid.Empty, "Ranked shortlist received",
             $"A ranked shortlist for {job.Title} is ready. Open your shortlists to plan interviews.",
             "/panelist/shortlists", NotificationKind.ShortlistSubmitted);
