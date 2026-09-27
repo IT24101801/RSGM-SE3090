@@ -269,6 +269,7 @@ builder.Services.AddScoped<AdminDashboardService>();
 builder.Services.AddScoped<AdminCompanyService>();
 
 builder.Services.AddScoped<RecruiterJobPostingService>();
+builder.Services.AddScoped<RecruiterApplicantService>();
 
 builder.Services.AddScoped<JobRequisitionService>();
 
@@ -376,3 +377,4 @@ await CompanyBackfillSeeder.SeedAsync(
 // ======================================================
 
 app.Run();
+
