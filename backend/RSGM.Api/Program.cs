@@ -273,6 +273,10 @@ builder.Services.AddScoped<RecruiterApplicantService>();
 
 builder.Services.AddScoped<JobRequisitionService>();
 
+builder.Services.AddScoped<
+    IInterviewAvailabilityService,
+    InterviewAvailabilityService>();
+
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 
 
