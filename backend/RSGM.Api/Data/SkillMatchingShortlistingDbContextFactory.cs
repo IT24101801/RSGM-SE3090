@@ -50,7 +50,7 @@ public sealed class SkillMatchingShortlistingDbContextFactory
             npgsql =>
             {
                 npgsql.MigrationsHistoryTable(
-                    "__SkillMatchingShortlistingMigrationsHistory");
+                    "__SkillMatchingAgentMigrationsHistory");
             });
 
         return new SkillMatchingShortlistingDbContext(
