@@ -32,27 +32,28 @@ public class PanelistCandidateController : ControllerBase
             ? id
             : Guid.Empty;
 
-    private IQueryable<ShortlistDispatchCandidate> AccessibleCandidates =>
-        _db.ShortlistDispatchCandidates.Where(candidate =>
-            candidate.Dispatch.PanelistId == UserId &&
-            candidate.Application.Status == ApplicationStatus.Shortlisted &&
-            candidate.Dispatch.JobPosting.CompanyId != null &&
-            candidate.Dispatch.JobPosting.CompanyEntity != null &&
-            candidate.Dispatch.JobPosting.CompanyEntity.IsActive &&
-            _db.CompanyMembers.Any(member =>
-                member.UserId == UserId &&
-                member.IsActive &&
-                member.Company.IsActive &&
-                member.CompanyId ==
-                    candidate.Dispatch.JobPosting.CompanyId));
+    private IQueryable<Application> AccessibleApplications =>
+    _db.Applications.Where(application =>
+        application.Status == ApplicationStatus.Shortlisted &&
+        application.JobPosting.CompanyId != null &&
+        application.JobPosting.CompanyEntity != null &&
+        application.JobPosting.CompanyEntity.IsActive &&
+        _db.ShortlistDispatches.Any(dispatch =>
+            dispatch.JobPostingId == application.JobPostingId &&
+            dispatch.PanelistId == UserId) &&
+        _db.CompanyMembers.Any(member =>
+            member.UserId == UserId &&
+            member.IsActive &&
+            member.Company.IsActive &&
+            member.CompanyId ==
+                application.JobPosting.CompanyId));
 
     [HttpGet("applications/{applicationId:guid}/candidate")]
     public async Task<IActionResult> GetCandidate(Guid applicationId)
     {
-        var application = await AccessibleCandidates
-            .Where(candidate =>
-                candidate.ApplicationId == applicationId)
-            .Select(candidate => candidate.Application)
+        var application = await AccessibleApplications
+            .Where(application =>
+                application.Id == applicationId)
             .Include(application => application.User)
             .Include(application => application.JobPosting)
             .AsNoTracking()
@@ -169,12 +170,12 @@ public class PanelistCandidateController : ControllerBase
     [HttpGet("applications/{applicationId:guid}/cv")]
     public async Task<IActionResult> DownloadCv(Guid applicationId)
     {
-        var candidateId = await AccessibleCandidates
+        var candidateId = await AccessibleApplications
             .AsNoTracking()
-            .Where(candidate =>
-                candidate.ApplicationId == applicationId)
-            .Select(candidate =>
-                (Guid?)candidate.Application.UserId)
+            .Where(application =>
+                application.Id == applicationId)
+            .Select(application =>
+                (Guid?)application.UserId)
             .FirstOrDefaultAsync();
 
         if (candidateId == null)

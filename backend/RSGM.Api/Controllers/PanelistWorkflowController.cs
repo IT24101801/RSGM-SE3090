@@ -140,20 +140,65 @@ public class PanelistWorkflowController : ControllerBase
     [HttpGet("panelist/shortlists")]
     [Authorize(Roles = AppRoles.HiringPanelist)]
     public async Task<IActionResult> MyShortlists()
+{
+    var dispatches = await Assigned
+        .Include(d => d.JobPosting)
+        .Include(d => d.Recruiter)
+        .Include(d => d.Candidates)
+        .AsNoTracking()
+        .OrderByDescending(d => d.SubmittedAt)
+        .ToListAsync();
+
+    var jobIds = dispatches
+        .Select(d => d.JobPostingId)
+        .Distinct()
+        .ToList();
+
+    var applications = await _db.Applications
+        .Include(a => a.User)
+        .AsNoTracking()
+        .Where(a =>
+            jobIds.Contains(a.JobPostingId) &&
+            (a.Status == ApplicationStatus.Shortlisted ||
+             a.Status == ApplicationStatus.Interview ||
+             a.Status == ApplicationStatus.Offer))
+        .ToListAsync();
+
+    return Ok(dispatches.Select(d => new
     {
-        var dispatches = await Assigned.Include(d => d.JobPosting)
-            .Include(d => d.Recruiter).Include(d => d.Candidates)
-            .ThenInclude(c => c.Application).ThenInclude(a => a.User).AsNoTracking()
-            .OrderByDescending(d => d.SubmittedAt).ToListAsync();
-        return Ok(dispatches.Select(d => new {
-            d.JobPostingId, JobTitle = d.JobPosting.Title, Recruiter = d.Recruiter.FullName,
-            d.RecruiterId, d.SubmittedAt,
-            Candidates = d.Candidates.OrderBy(c => c.Rank)
-                .Where(c => c.Application.Status is ApplicationStatus.Shortlisted or ApplicationStatus.Interview or ApplicationStatus.Offer)
-                .Select(c => new { c.Application.Id, Candidate = c.Application.User.FullName,
-                    c.Application.User.Email, Status = c.Application.Status.ToString(), ShortlistRank = c.Rank })
-        }));
-    }
+        d.JobPostingId,
+        JobTitle = d.JobPosting.Title,
+        Recruiter = d.Recruiter.FullName,
+        d.RecruiterId,
+        d.SubmittedAt,
+
+        Candidates = applications
+            .Where(a => a.JobPostingId == d.JobPostingId)
+            .OrderBy(a =>
+                a.ShortlistRank ??
+                d.Candidates
+                    .FirstOrDefault(c =>
+                        c.ApplicationId == a.Id)
+                    ?.Rank ??
+                int.MaxValue)
+            .ThenBy(a => a.AppliedAt)
+            .Select(a => new
+            {
+                a.Id,
+                Candidate = a.User.FullName,
+                a.User.Email,
+                Status = a.Status.ToString(),
+
+                ShortlistRank =
+                    a.ShortlistRank ??
+                    d.Candidates
+                        .FirstOrDefault(c =>
+                            c.ApplicationId == a.Id)
+                        ?.Rank
+            })
+    }));
+}
+    
 
     [HttpGet("panelist/jobs/{jobId:guid}/hr-managers")]
     [Authorize(Roles = AppRoles.HiringPanelist)]

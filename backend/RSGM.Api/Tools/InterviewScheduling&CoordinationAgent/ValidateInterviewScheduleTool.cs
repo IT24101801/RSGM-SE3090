@@ -81,24 +81,27 @@ public sealed class ValidateInterviewScheduleTool
         }
 
         var stillAccessible =
-            await _db.ShortlistDispatchCandidates
+            await _db.Applications
                 .AsNoTracking()
                 .AnyAsync(
-                    candidate =>
-                        candidate.ApplicationId ==
+                    application =>
+                        application.Id ==
                             context.ApplicationId &&
-                        candidate.Dispatch.PanelistId ==
-                            context.PanelistId &&
-                        candidate.Dispatch.RecruiterId ==
-                            context.RecruiterId &&
-                        candidate.Dispatch.JobPostingId ==
+                        application.JobPostingId ==
                             context.JobId &&
-                        candidate.Application.Status ==
+                        application.Status ==
                             ApplicationStatus.Shortlisted &&
-                        candidate.Dispatch.JobPosting.CompanyId ==
+                        application.JobPosting.CompanyId ==
                             context.CompanyId &&
-                        candidate.Dispatch.JobPosting.CompanyEntity != null &&
-                        candidate.Dispatch.JobPosting.CompanyEntity.IsActive &&
+                        application.JobPosting.CompanyEntity != null &&
+                        application.JobPosting.CompanyEntity.IsActive &&
+                        _db.ShortlistDispatches.Any(dispatch =>
+                            dispatch.JobPostingId ==
+                                application.JobPostingId &&
+                            dispatch.PanelistId ==
+                                context.PanelistId &&
+                            dispatch.RecruiterId ==
+                                context.RecruiterId) &&
                         _db.CompanyMembers.Any(member =>
                             member.UserId ==
                                 context.PanelistId &&

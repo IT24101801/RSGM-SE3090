@@ -63,34 +63,32 @@ public sealed class GetInterviewSchedulingContextTool
             InterviewSchedulingAgentRoleNames.Context,
             InterviewSchedulingAgentToolRegistry.ContextTool);
 
-        var candidate = await _db.ShortlistDispatchCandidates
+        var candidate = await _db.Applications
             .AsNoTracking()
-            .Where(x =>
-                x.ApplicationId == applicationId &&
-                x.Dispatch.PanelistId == panelistId &&
-                x.Application.Status == ApplicationStatus.Shortlisted &&
-                x.Dispatch.JobPosting.CompanyId != null &&
-                x.Dispatch.JobPosting.CompanyEntity != null &&
-                x.Dispatch.JobPosting.CompanyEntity.IsActive &&
+            .Where(application =>
+                application.Id == applicationId &&
+                application.Status == ApplicationStatus.Shortlisted &&
+                application.JobPosting.CompanyId != null &&
+                application.JobPosting.CompanyEntity != null &&
+                application.JobPosting.CompanyEntity.IsActive &&
+                _db.ShortlistDispatches.Any(dispatch =>
+                    dispatch.JobPostingId == application.JobPostingId &&
+                    dispatch.PanelistId == panelistId) &&
                 _db.CompanyMembers.Any(member =>
                     member.UserId == panelistId &&
                     member.IsActive &&
                     member.Company.IsActive &&
                     member.CompanyId ==
-                        x.Dispatch.JobPosting.CompanyId))
-            .Select(x => new
+                        application.JobPosting.CompanyId))
+            .Select(application => new
             {
-                ApplicationId = x.Application.Id,
-                CandidateId = x.Application.UserId,
-                CandidateName = x.Application.User.FullName,
-                CandidateEmail = x.Application.User.Email,
-                JobId = x.Dispatch.JobPostingId,
-                JobTitle = x.Dispatch.JobPosting.Title,
-                CompanyId = x.Dispatch.JobPosting.CompanyId!.Value,
-                PanelistId = x.Dispatch.PanelistId,
-                PanelistName = x.Dispatch.Panelist.FullName,
-                RecruiterId = x.Dispatch.RecruiterId,
-                RecruiterName = x.Dispatch.Recruiter.FullName
+                ApplicationId = application.Id,
+                CandidateId = application.UserId,
+                CandidateName = application.User.FullName,
+                CandidateEmail = application.User.Email,
+                JobId = application.JobPostingId,
+                JobTitle = application.JobPosting.Title,
+                CompanyId = application.JobPosting.CompanyId!.Value
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -98,6 +96,26 @@ public sealed class GetInterviewSchedulingContextTool
         {
             throw new InvalidOperationException(
                 "The selected shortlisted candidate is not available to this hiring panelist.");
+        }
+
+        var dispatch = await _db.ShortlistDispatches
+            .AsNoTracking()
+            .Where(item =>
+                item.JobPostingId == candidate.JobId &&
+                item.PanelistId == panelistId)
+            .Select(item => new
+            {
+                item.PanelistId,
+                PanelistName = item.Panelist.FullName,
+                item.RecruiterId,
+                RecruiterName = item.Recruiter.FullName
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (dispatch == null)
+        {
+            throw new InvalidOperationException(
+                "The job shortlist is no longer assigned to this hiring panelist.");
         }
 
         var hrManager = await _users.FindByIdAsync(
@@ -141,11 +159,11 @@ public sealed class GetInterviewSchedulingContextTool
             JobTitle = candidate.JobTitle,
             CompanyId = candidate.CompanyId,
 
-            PanelistId = candidate.PanelistId,
-            PanelistName = candidate.PanelistName,
+            PanelistId = dispatch.PanelistId,
+            PanelistName = dispatch.PanelistName,
 
-            RecruiterId = candidate.RecruiterId,
-            RecruiterName = candidate.RecruiterName,
+            RecruiterId = dispatch.RecruiterId,
+            RecruiterName = dispatch.RecruiterName,
 
             HrManagerId = hrManager.Id,
             HrManagerName = hrManager.FullName
