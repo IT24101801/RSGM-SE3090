@@ -1154,7 +1154,7 @@ public sealed class InterviewSchedulingCoordinationOrchestrator
         DateTime utc) =>
         $"{TimeZoneInfo.ConvertTimeFromUtc(utc, _zone):ddd dd MMM yyyy, hh:mm tt} ({_zone.Id})";
 
-    private static void AddStep(
+    private void AddStep(
         InterviewSchedulingCoordinationWorkflow workflow,
         int stepNumber,
         string agentName,
@@ -1162,9 +1162,11 @@ public sealed class InterviewSchedulingCoordinationOrchestrator
         string inputSummary,
         string outputSummary)
     {
-        workflow.Steps.Add(
+        var step =
             new InterviewSchedulingCoordinationWorkflowStep
             {
+                WorkflowId = workflow.Id,
+
                 StepNumber =
                     stepNumber,
 
@@ -1182,10 +1184,14 @@ public sealed class InterviewSchedulingCoordinationOrchestrator
 
                 StartedAt =
                     DateTime.UtcNow
-            });
+            };
+
+        _agentDb.WorkflowSteps.Add(step);
+
+        workflow.Steps.Add(step);
     }
 
-    private static void CompleteStep(
+    private void CompleteStep(
         InterviewSchedulingCoordinationWorkflow workflow,
         int stepNumber,
         string agentName,
@@ -1228,7 +1234,7 @@ public sealed class InterviewSchedulingCoordinationOrchestrator
             DateTime.UtcNow;
     }
 
-    private static void AddFailedStep(
+    private void AddFailedStep(
         InterviewSchedulingCoordinationWorkflow workflow,
         string agentName,
         string error)
@@ -1239,9 +1245,12 @@ public sealed class InterviewSchedulingCoordinationOrchestrator
                 : workflow.Steps.Max(
                     x => x.StepNumber) + 1;
 
-        workflow.Steps.Add(
+        var step =
             new InterviewSchedulingCoordinationWorkflowStep
             {
+                WorkflowId =
+                    workflow.Id,
+
                 StepNumber =
                     nextStep,
 
@@ -1266,6 +1275,10 @@ public sealed class InterviewSchedulingCoordinationOrchestrator
 
                 CompletedAt =
                     DateTime.UtcNow
-            });
+            };
+
+        _agentDb.WorkflowSteps.Add(step);
+
+        workflow.Steps.Add(step);
     }
 }
