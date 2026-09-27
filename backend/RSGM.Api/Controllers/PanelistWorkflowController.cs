@@ -231,25 +231,219 @@ public class PanelistWorkflowController : ControllerBase
     [Authorize(Roles = AppRoles.Recruiter + "," + AppRoles.HiringPanelist + "," + AppRoles.HRManager)]
     public async Task<IActionResult> AddBusyTime(BusyTimeRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Length > 150 ||
-            request.Description?.Length > 500 || !BusyTimeAllowed(request.StartsAt, request.EndsAt))
-            return BadRequest(new { message = "Busy times must be future weekday periods within 9:00 AM–5:00 PM." });
-        if (!await _db.CompanyMembers.AnyAsync(m => m.UserId == Me && m.IsActive && m.Company.IsActive))
+        if (string.IsNullOrWhiteSpace(request.Title) ||
+            request.Title.Length > 150 ||
+            request.Description?.Length > 500 ||
+            !BusyTimeAllowed(request.StartsAt, request.EndsAt))
+        {
+            return BadRequest(new
+            {
+                message =
+                    "Busy times must be future weekday periods within 9:00 AM–5:00 PM."
+            });
+        }
+
+        if (!await _db.CompanyMembers.AnyAsync(m =>
+            m.UserId == Me &&
+            m.IsActive &&
+            m.Company.IsActive))
+        {
             return Forbid();
+        }
+
         var start = request.StartsAt.UtcDateTime;
         var end = request.EndsAt.UtcDateTime;
-        if (await _db.UserBusyTimes.AnyAsync(a => a.UserId == Me &&
-                a.StartsAt < end && a.EndsAt > start))
-            return Conflict(new { message = "This busy time overlaps another event in your schedule." });
-        if (await _db.Interviews.AnyAsync(i => i.Status != InterviewStatus.Cancelled &&
-                i.ScheduledAt < end && i.ScheduledAt.AddMinutes(SlotMinutes) > start &&
-                (i.PanelistId == Me || i.RecruiterId == Me || i.HrManagerId == Me)))
-            return Conflict(new { message = "This time overlaps an existing interview." });
-        var row = new UserBusyTime { UserId = Me, Title = request.Title.Trim(),
-            Description = request.Description?.Trim(), StartsAt = start, EndsAt = end };
+
+        // Prevent duplicate/overlapping busy-time entries,
+        // but NEVER reject a busy time because of an interview.
+        if (await _db.UserBusyTimes.AnyAsync(a =>
+            a.UserId == Me &&
+            a.StartsAt < end &&
+            a.EndsAt > start))
+        {
+            return Conflict(new
+            {
+                message =
+                    "This busy time overlaps another busy period already in your schedule."
+            });
+        }
+
+        // Busy work has priority over interviews.
+        // Any overlapping future interview involving this staff member
+        // must be cancelled automatically.
+        var overlappingInterviews =
+            await _db.Interviews
+                .Include(i => i.Application)
+                    .ThenInclude(a => a.User)
+                .Include(i => i.Application)
+                    .ThenInclude(a => a.JobPosting)
+                .Include(i => i.Panelist)
+                .Where(i =>
+                    i.Status != InterviewStatus.Cancelled &&
+                    i.ScheduledAt > DateTime.UtcNow &&
+                    i.ScheduledAt < end &&
+                    i.ScheduledAt.AddMinutes(SlotMinutes) > start &&
+                    (i.PanelistId == Me ||
+                    i.RecruiterId == Me ||
+                    i.HrManagerId == Me))
+                .ToListAsync();
+
+        var busyOwner =
+            await _users.FindByIdAsync(Me.ToString());
+
+        // Keeps shortlist ranking correct when several
+        // interviews are cancelled at once.
+        var nextRanks =
+         new Dictionary<Guid, int>();
+
+        foreach (var interview in overlappingInterviews)
+        {
+            var oldInterviewTime =
+                When(interview.ScheduledAt);
+
+            interview.Status =
+                InterviewStatus.Cancelled;
+
+            // If the candidate was still in the interview stage,
+            // return them to the shortlist so they can be scheduled again.
+            if (interview.Application.Status ==
+                ApplicationStatus.Interview)
+            {
+                var jobId =
+                    interview.Application.JobPostingId;
+
+                if (!nextRanks.TryGetValue(
+                    jobId,
+                    out var nextRank))
+                {
+                    var currentMaxRank =
+                        await _db.Applications
+                            .Where(a =>
+                                a.JobPostingId == jobId &&
+                                a.Status ==
+                                    ApplicationStatus.Shortlisted)
+                            .MaxAsync(a =>
+                                (int?)a.ShortlistRank)
+                        ?? 0;
+
+                    nextRank =
+                        currentMaxRank;
+                }
+
+                nextRank++;
+
+                nextRanks[jobId] =
+                    nextRank;
+
+                interview.Application.Status =
+                    ApplicationStatus.Shortlisted;
+
+                interview.Application.ShortlistRank =
+                    nextRank;
+            }
+
+            var reason =
+                $"A required staff member became unavailable because of " +
+                $"a higher-priority work commitment: {request.Title.Trim()}.";
+
+            // Candidate notification.
+            Notify(
+                interview.Application.UserId,
+                interview.Id,
+                "Interview cancelled due to staff unavailability",
+                $"Your interview for " +
+                $"{interview.Application.JobPosting.Title} " +
+                $"scheduled for {oldInterviewTime} was cancelled. " +
+                $"{reason} You remain eligible for another interview time.",
+                "/jobs/interviews",
+                NotificationKind.InterviewCancelled);
+
+            // Notify Panelist, Recruiter and HR Manager.
+            foreach (var recipient in new[]
+                    {
+                        interview.PanelistId,
+                        interview.RecruiterId,
+                        interview.HrManagerId ?? Guid.Empty
+                    }
+                    .Where(id => id != Guid.Empty)
+                    .Distinct())
+            {
+                var path =
+                    recipient == interview.PanelistId
+                        ? "/panelist/interviews"
+                        : recipient == interview.RecruiterId
+                            ? "/recruiter/interviews"
+                            : "/hr/recommendations";
+
+                Notify(
+                    recipient,
+                    interview.Id,
+                    "Interview cancelled because of busy time",
+                    $"The interview for " +
+                    $"{interview.Application.JobPosting.Title} " +
+                    $"scheduled for {oldInterviewTime} was automatically cancelled. " +
+                    $"{reason}",
+                    path,
+                    NotificationKind.InterviewCancelled);
+            }
+        }
+
+        // The busy time itself is ALWAYS added after validation,
+        // regardless of overlapping interviews.
+        var row =
+            new UserBusyTime
+            {
+                UserId = Me,
+                Title = request.Title.Trim(),
+                Description =
+                    request.Description?.Trim(),
+                StartsAt = start,
+                EndsAt = end
+            };
+
         _db.UserBusyTimes.Add(row);
+
+        // Save the busy time + interview cancellations together.
         await _db.SaveChangesAsync();
-        return Ok(new { row.Id, row.Title, row.Description, row.StartsAt, row.EndsAt });
+
+        // External email notification to every affected applicant.
+        // Email failure must not undo the busy time or cancellation.
+        foreach (var interview in overlappingInterviews)
+        {
+            await _email.SendAsync(
+                interview.Application.User.Email
+                    ?? string.Empty,
+
+                $"Interview cancelled: " +
+                $"{interview.Application.JobPosting.Title}",
+
+                $"Hello {interview.Application.User.FullName},\n\n" +
+                $"Your interview for " +
+                $"{interview.Application.JobPosting.Title}, " +
+                $"previously scheduled for " +
+                $"{When(interview.ScheduledAt)}, has been cancelled.\n\n" +
+                $"A required member of the interview team became unavailable " +
+                $"because of a higher-priority work commitment.\n\n" +
+                $"You remain shortlisted and the hiring panelist can arrange " +
+                $"another available interview time.\n\n" +
+                $"Please monitor RSGM for the updated schedule.\n\n" +
+                $"RSGM Recruitment",
+
+                HttpContext.RequestAborted,
+
+                interview.Panelist.Email);
+        }
+
+        return Ok(new
+        {
+            row.Id,
+            row.Title,
+            row.Description,
+            row.StartsAt,
+            row.EndsAt,
+            cancelledInterviews =
+                overlappingInterviews.Count
+        });
     }
 
     [HttpDelete("busy-times/{id:guid}")]
