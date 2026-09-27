@@ -92,8 +92,8 @@ function AppRoutes() {
         <Route path="requisitions" element={<RequisitionsPage />} />
         <Route path="postings" element={<JobPostingsPage />} />
         <Route path="applications" element={<ApplicationsPage />} />
-        <Route path="ai-shortlisting" element={<SkillMatchingShortlistingAgentPage />}
-/>      <Route path="matching" element={<CandidateMatchingPage />} />
+        <Route path="ai-shortlisting" element={<SkillMatchingShortlistingAgentPage />} />
+        <Route path="matching" element={<CandidateMatchingPage />} />
         <Route path="shortlists" element={<ShortlistsPage />} />
         <Route path="schedule" element={<AvailabilityPage />} />
         <Route path="availability" element={<Navigate to="/recruiter/schedule" replace />} />
