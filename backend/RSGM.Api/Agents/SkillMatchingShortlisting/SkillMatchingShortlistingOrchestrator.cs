@@ -705,7 +705,7 @@ await _agentDb.SaveChangesAsync(cancellationToken);
         };
     }
 
-    private static void AddStep(
+    private void AddStep(
         SkillMatchingShortlistingWorkflow workflow,
         int stepNumber,
         string agentName,
@@ -713,19 +713,21 @@ await _agentDb.SaveChangesAsync(cancellationToken);
         string inputSummary,
         string outputSummary)
     {
-        workflow.Steps.Add(
-            new SkillMatchingShortlistingWorkflowStep
-            {
-                StepNumber = stepNumber,
-                AgentName = agentName,
-                Status = status,
-                InputSummary = inputSummary,
-                OutputSummary = outputSummary,
-                StartedAt = DateTime.UtcNow
-            });
+        var step = new SkillMatchingShortlistingWorkflowStep
+        {
+            StepNumber = stepNumber,
+            AgentName = agentName,
+            Status = status,
+            InputSummary = inputSummary,
+            OutputSummary = outputSummary,
+            StartedAt = DateTime.UtcNow
+        };
+        
+        workflow.Steps.Add(step);
+        _agentDb.WorkflowSteps.Add(step);
     }
 
-    private static void AddCompletedStep(
+    private void AddCompletedStep(
         SkillMatchingShortlistingWorkflow workflow,
         int stepNumber,
         string agentName,
@@ -755,22 +757,24 @@ await _agentDb.SaveChangesAsync(cancellationToken);
         workflow.Steps.Last().CompletedAt = DateTime.UtcNow;
     }
 
-    private static void AddFailedStep(
+    private void AddFailedStep(
         SkillMatchingShortlistingWorkflow workflow,
         string agentName,
         string error)
     {
-        workflow.Steps.Add(
-            new SkillMatchingShortlistingWorkflowStep
-            {
-                StepNumber = workflow.Steps.Count + 1,
-                AgentName = agentName,
-                Status = SkillMatchingShortlistingStepStatus.Failed,
-                InputSummary = string.Empty,
-                OutputSummary = string.Empty,
-                ErrorMessage = error,
-                StartedAt = DateTime.UtcNow,
-                CompletedAt = DateTime.UtcNow
-            });
+        var step = new SkillMatchingShortlistingWorkflowStep
+        {
+            StepNumber = workflow.Steps.Count + 1,
+            AgentName = agentName,
+            Status = SkillMatchingShortlistingStepStatus.Failed,
+            InputSummary = string.Empty,
+            OutputSummary = string.Empty,
+            ErrorMessage = error,
+            StartedAt = DateTime.UtcNow,
+            CompletedAt = DateTime.UtcNow
+        };
+
+        workflow.Steps.Add(step);
+        _agentDb.WorkflowSteps.Add(step);
     }
 }
