@@ -3,15 +3,12 @@ import {
   Sparkles,
   CheckCircle2,
   AlertTriangle,
-  XCircle,
   Clock,
   ShieldCheck,
   Cpu,
   Layers,
   Award,
-  ChevronRight,
   X,
-  Send,
 } from "lucide-react";
 
 export default function HrRequisitionAgentDossierModal({
@@ -96,7 +93,7 @@ export default function HrRequisitionAgentDossierModal({
         {/* Content */}
         <div className="p-6 space-y-6 flex-1">
           {/* Top Score Banner */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 p-6 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white shadow-lg">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 p-6 rounded-2xl bg-linear-to-br from-slate-900 to-indigo-950 text-white shadow-lg">
             <div className="space-y-2 max-w-lg">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-xs text-indigo-200 font-medium">
                 <Sparkles size={13} />
@@ -110,7 +107,7 @@ export default function HrRequisitionAgentDossierModal({
               </p>
             </div>
 
-            <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 min-w-[130px]">
+            <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 min-w-32.5">
               <span className="text-3xl font-extrabold tracking-tight text-emerald-400">
                 {score}
                 <span className="text-base font-normal text-slate-300">/100</span>
