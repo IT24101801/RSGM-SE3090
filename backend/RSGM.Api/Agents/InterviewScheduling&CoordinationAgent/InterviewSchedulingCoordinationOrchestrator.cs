@@ -973,7 +973,7 @@ public sealed class InterviewSchedulingCoordinationOrchestrator
     {
         try
         {
-            return await LoadContextAsync(
+            return await  _contextAgent.RunAsync(
                 panelistId,
                 applicationId,
                 hrManagerId,
