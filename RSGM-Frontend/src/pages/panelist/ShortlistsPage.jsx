@@ -10,6 +10,7 @@ import {
 } from "../../services/panelistWorkflowService";
 import {
   startInterviewSchedulingAgent,
+   getInterviewSchedulingWorkflows,
   approveInterviewMode,
   decideInterviewSchedule,
 } from "../../services/interviewSchedulingAgentService";
@@ -51,6 +52,49 @@ export default function ShortlistsPage() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restoreActiveAgentWorkflow() {
+      try {
+        const workflows =
+          await getInterviewSchedulingWorkflows();
+
+        if (cancelled) return;
+
+        const terminalStatuses = [
+          "Completed",
+          "Rejected",
+          "FailedValidation",
+          "TimedOut",
+          "SafelyFailed",
+        ];
+
+        const activeWorkflow =
+          workflows.find(
+            (workflow) =>
+              !terminalStatuses.includes(
+                workflow.status
+              )
+          );
+
+        if (activeWorkflow) {
+          setAgentWorkflow(activeWorkflow);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setAgentError(err.message);
+        }
+      }
+    }
+
+    restoreActiveAgentWorkflow();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!selection) return;
