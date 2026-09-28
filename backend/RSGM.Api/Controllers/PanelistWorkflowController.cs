@@ -254,19 +254,6 @@ public class PanelistWorkflowController : ControllerBase
         var start = request.StartsAt.UtcDateTime;
         var end = request.EndsAt.UtcDateTime;
 
-        // Prevent duplicate/overlapping busy-time entries,
-        // but NEVER reject a busy time because of an interview.
-        if (await _db.UserBusyTimes.AnyAsync(a =>
-            a.UserId == Me &&
-            a.StartsAt < end &&
-            a.EndsAt > start))
-        {
-            return Conflict(new
-            {
-                message =
-                    "This busy time overlaps another busy period already in your schedule."
-            });
-        }
 
         // Busy work has priority over interviews.
         // Any overlapping future interview involving this staff member
