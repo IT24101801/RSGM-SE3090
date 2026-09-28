@@ -40,6 +40,7 @@ import ProfilePage from "../pages/jobseeker/ProfilePage";
 import BrowseJobsPage from "../pages/jobseeker/BrowseJobsPage";
 import MyApplicationsPage from "../pages/jobseeker/MyApplicationsPage";
 import MyOffersPage from "../pages/jobseeker/MyOffersPage";
+import AiCareerAssistantPage from "../pages/jobseeker/AiCareerAssistantPage";
 import NotificationsPage from "../pages/common/NotificationsPage";
 
 import PanelistLayout from "../layouts/PanelistLayout";
@@ -130,6 +131,7 @@ function AppRoutes() {
         <Route index element={<JobSeekerDashboardPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="browse" element={<BrowseJobsPage />} />
+        <Route path="ai-career" element={<AiCareerAssistantPage />} />
         <Route path="applications" element={<MyApplicationsPage />} />
         <Route path="interviews" element={<JobSeekerInterviewsPage />} />
         <Route path="offers" element={<MyOffersPage />} />
