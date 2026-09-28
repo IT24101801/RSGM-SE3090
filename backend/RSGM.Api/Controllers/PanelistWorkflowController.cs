@@ -477,8 +477,7 @@ return Ok(slots);
         var dispatch = await Assigned.FirstOrDefaultAsync(d =>
             d.JobPostingId == application.JobPostingId);
         if (dispatch == null) return Forbid();
-        if (!await _db.ShortlistDispatchCandidates.AnyAsync(c => c.DispatchId == dispatch.Id && c.ApplicationId == application.Id))
-            return Forbid();
+    
         if (!await IsStaffInCompany(request.HrManagerId, application.JobPosting.CompanyId, AppRoles.HRManager))
             return BadRequest(new { message = "Select an active HR Manager from this company." });
         if (request.Type is not ("Physical" or "Online") ||
