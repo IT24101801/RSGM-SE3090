@@ -132,7 +132,7 @@ public sealed class InterviewSchedulingCoordinationOrchestrator
 
         // First retrieve trusted context.
         var context =
-            await _contextAgent.RunAsync(
+            await LoadContextAsync(
                 panelistId,
                 request.ApplicationId,
                 request.HrManagerId,
@@ -401,7 +401,7 @@ public sealed class InterviewSchedulingCoordinationOrchestrator
         }
 
         var context =
-            await _contextAgent.RunAsync(
+            await LoadContextAsync(
                 panelistId,
                 workflow.ApplicationId,
                 workflow.HrManagerId,
@@ -612,7 +612,7 @@ public sealed class InterviewSchedulingCoordinationOrchestrator
         }
 
         var context =
-            await _contextAgent.RunAsync(
+            await LoadContextAsync(
                 panelistId,
                 workflow.ApplicationId,
                 workflow.HrManagerId,
@@ -962,6 +962,28 @@ public sealed class InterviewSchedulingCoordinationOrchestrator
                ?? throw new
                    InterviewSchedulingCoordinationValidationException(
                        "The interview scheduling workflow was not found.");
+    }
+
+    private async Task<InterviewSchedulingContextSnapshot>
+        LoadContextAsync(
+            Guid panelistId,
+            Guid applicationId,
+            Guid hrManagerId,
+            CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await LoadContextAsync(
+                panelistId,
+                applicationId,
+                hrManagerId,
+                cancellationToken);
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new InterviewSchedulingCoordinationValidationException(
+                exception.Message);
+        }
     }
 
     private async Task<InterviewSchedulingWorkflowDto>
