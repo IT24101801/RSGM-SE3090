@@ -28,15 +28,17 @@ public class PanelistWorkflowController : ControllerBase
     private readonly UserManager<ApplicationUser> _users;
     private readonly TimeZoneInfo _zone;
     private readonly IEmailService _email;
+    private readonly IInterviewAvailabilityService _availability;
     private readonly string _frontendBaseUrl;
     private const int SlotMinutes = 60;
 
     public PanelistWorkflowController(ApplicationDbContext db,
-        UserManager<ApplicationUser> users, IEmailService email, IConfiguration config)
+        UserManager<ApplicationUser> users, IEmailService email, IInterviewAvailabilityService availability, IConfiguration config)
     {
         _db = db;
         _users = users;
         _email = email;
+        _availability = availability;
         _zone = TimeZoneInfo.FindSystemTimeZoneById(config["Hiring:TimeZoneId"] ?? "Asia/Colombo");
         _frontendBaseUrl = (config["Frontend:BaseUrl"] ?? "http://localhost:5173").TrimEnd('/');
     }
@@ -50,29 +52,22 @@ public class PanelistWorkflowController : ControllerBase
         _db.CompanyMembers.Any(m => m.UserId == Me && m.IsActive &&
             m.CompanyId == d.JobPosting.CompanyId));
 
-    private static bool InHours(DateTimeOffset date, TimeZoneInfo zone)
-    {
-        var local = TimeZoneInfo.ConvertTime(date, zone);
-        return local.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) &&
-            local.TimeOfDay >= TimeSpan.FromHours(9) &&
-            local.TimeOfDay + TimeSpan.FromMinutes(SlotMinutes) <= TimeSpan.FromHours(17);
-    }
-
+    
     private bool BusyTimeAllowed(DateTimeOffset start, DateTimeOffset end)
     {
         var localStart = TimeZoneInfo.ConvertTime(start, _zone);
         var localEnd = TimeZoneInfo.ConvertTime(end, _zone);
-        return start > DateTimeOffset.UtcNow && end > start &&
+
+        return start > DateTimeOffset.UtcNow &&
+            end > start &&
             end <= DateTimeOffset.UtcNow.AddDays(365) &&
             localStart.Date == localEnd.Date &&
-            localStart.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) &&
+            localStart.DayOfWeek is not
+                (DayOfWeek.Saturday or DayOfWeek.Sunday) &&
             localStart.TimeOfDay >= TimeSpan.FromHours(9) &&
             localEnd.TimeOfDay <= TimeSpan.FromHours(17);
     }
 
-    private bool Allowed(DateTimeOffset date) =>
-        date > DateTimeOffset.UtcNow && date <= DateTimeOffset.UtcNow.AddDays(90) &&
-        InHours(date, _zone);
 
     private string When(DateTime utc) =>
         $"{TimeZoneInfo.ConvertTimeFromUtc(utc, _zone):ddd dd MMM yyyy, hh:mm tt} ({_zone.Id})";
@@ -83,15 +78,27 @@ public class PanelistWorkflowController : ControllerBase
             RecipientId = userId, InterviewId = interviewId, Kind = kind,
             Title = title, Message = message, Link = link
         });
-
-    private async Task<bool> IsStaffInCompany(Guid userId, Guid? companyId, string role)
+    
+    private async Task<bool> IsStaffInCompany(
+        Guid userId,
+        Guid? companyId,
+        string role)
     {
-        if (!companyId.HasValue) return false;
+        if (!companyId.HasValue)
+            return false;
+
         var user = await _users.FindByIdAsync(userId.ToString());
-        return user != null && user.IsActive && await _users.IsInRoleAsync(user, role) &&
-            await _db.CompanyMembers.AnyAsync(m => m.UserId == userId && m.IsActive &&
-                m.Company.IsActive && m.CompanyId == companyId.Value);
+
+        return user != null &&
+            user.IsActive &&
+            await _users.IsInRoleAsync(user, role) &&
+            await _db.CompanyMembers.AnyAsync(m =>
+                m.UserId == userId &&
+                m.IsActive &&
+                m.Company.IsActive &&
+                m.CompanyId == companyId.Value);
     }
+
 
     [HttpPost("recruiter/jobs/{jobId:guid}/send-shortlist")]
     [Authorize(Roles = AppRoles.Recruiter)]
@@ -211,21 +218,6 @@ public class PanelistWorkflowController : ControllerBase
         return NoContent();
     }
 
-    private async Task<bool> SlotAvailable(Guid companyId, Guid panelistId, Guid recruiterId,
-        Guid hrId, DateTime start, Guid? excludeInterviewId = null)
-    {
-        var end = start.AddMinutes(SlotMinutes);
-        var ids = new[] { panelistId, recruiterId, hrId };
-        if (await _db.UserBusyTimes.AnyAsync(b => ids.Contains(b.UserId) &&
-            b.StartsAt < end && b.EndsAt > start))
-            return false;
-
-        // A company cannot book two candidates into the same interview time, even with different staff.
-        return !await _db.Interviews.AnyAsync(i => (!excludeInterviewId.HasValue || i.Id != excludeInterviewId.Value) &&
-            i.Status != InterviewStatus.Cancelled &&
-            i.ScheduledAt < end && i.ScheduledAt.AddMinutes(SlotMinutes) > start &&
-            i.Application.JobPosting.CompanyId == companyId);
-    }
 
     [HttpGet("panelist/jobs/{jobId:guid}/slots")]
     [Authorize(Roles = AppRoles.HiringPanelist)]
@@ -236,30 +228,20 @@ public class PanelistWorkflowController : ControllerBase
         if (dispatch == null) return NotFound();
         if (!await IsStaffInCompany(hrManagerId, dispatch.JobPosting.CompanyId, AppRoles.HRManager))
             return BadRequest(new { message = "Choose an HR Manager from this company." });
-        var slots = new List<DateTime>();
-        var localToday = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, _zone).Date;
-        for (var dayOffset = 0; dayOffset < 30 && slots.Count < 60; dayOffset++)
-        {
-            var date = localToday.AddDays(dayOffset);
-            if (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) continue;
-            for (var hour = 9; hour <= 16 && slots.Count < 60; hour++)
-            {
-                var local = DateTime.SpecifyKind(date.AddHours(hour), DateTimeKind.Unspecified);
-                var start = TimeZoneInfo.ConvertTimeToUtc(local, _zone);
-                if (start <= DateTime.UtcNow) continue;
-                if (await SlotAvailable(dispatch.JobPosting.CompanyId!.Value, Me,
-                    dispatch.RecruiterId, hrManagerId, start))
-                    slots.Add(start);
-            }
-        }
-        return Ok(slots);
+        var slots = await _availability.GetAvailableSlotsAsync(
+    dispatch.JobPosting.CompanyId!.Value,
+    Me,
+    dispatch.RecruiterId,
+    hrManagerId);
+
+return Ok(slots);
     }
 
     [HttpPost("panelist/interviews")]
     [Authorize(Roles = AppRoles.HiringPanelist)]
     public async Task<IActionResult> Propose(PanelistScheduleRequest request)
     {
-        if (!Allowed(request.StartsAt) || string.IsNullOrWhiteSpace(request.Type) ||
+        if (!_availability.IsAllowed(request.StartsAt) || string.IsNullOrWhiteSpace(request.Type) ||
             request.Type.Length > 80 || request.LocationOrLink?.Length > 500)
             return BadRequest(new { message = "Choose a future office-hours slot, type, and valid meeting location." });
         var application = await _db.Applications.Include(a => a.User)
@@ -280,7 +262,7 @@ public class PanelistWorkflowController : ControllerBase
             i.Status != InterviewStatus.Cancelled))
             return Conflict(new { message = "This applicant already has an active interview." });
         var start = request.StartsAt.UtcDateTime;
-        if (!await SlotAvailable(application.JobPosting.CompanyId!.Value, Me,
+        if (!await _availability.IsSlotAvailableAsync(application.JobPosting.CompanyId!.Value, Me,
                 dispatch.RecruiterId, request.HrManagerId, start))
             return Conflict(new { message = "That time is busy or another candidate already has an interview then." });
         var interview = new Interview { ApplicationId = application.Id,
@@ -388,11 +370,11 @@ public class PanelistWorkflowController : ControllerBase
         if (interview == null) return NotFound();
         if (interview.Status is not (InterviewStatus.Proposed or InterviewStatus.Scheduled or
             InterviewStatus.RescheduleRequested) || interview.ScheduledAt <= DateTime.UtcNow ||
-            !Allowed(request.StartsAt) || interview.HrManagerId == null)
+            !_availability.IsAllowed(request.StartsAt) || interview.HrManagerId == null)
             return Conflict(new { message = "Choose a future available office-hours slot." });
         var next = request.StartsAt.UtcDateTime;
         if (next == interview.ScheduledAt ||
-            !await SlotAvailable(interview.Application.JobPosting.CompanyId!.Value, Me,
+            !await _availability.IsSlotAvailableAsync(interview.Application.JobPosting.CompanyId!.Value, Me,
                 interview.RecruiterId, interview.HrManagerId.Value, next, id))
             return Conflict(new { message = "That time is unavailable." });
         var old = When(interview.ScheduledAt);

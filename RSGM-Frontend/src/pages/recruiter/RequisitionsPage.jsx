@@ -7,6 +7,9 @@ import {
   MapPin,
   Send,
   Users,
+  Sparkles,
+  Bot,
+  ShieldCheck,
 } from "lucide-react";
 
 import {
@@ -15,6 +18,14 @@ import {
   submitRequisition,
   updateRequisition,
 } from "../../services/recruiterRequisitionService";
+
+import {
+  analyzeRequisitionWithHrAgent,
+  submitRequisitionWithHrApprovalGate,
+  getHrRequisitionAgentStatus,
+} from "../../services/hrRequisitionAgentService";
+
+import HrRequisitionAgentDossierModal from "../../components/hr/HrRequisitionAgentDossierModal";
 
 const initialForm = {
   positionTitle: "",
@@ -97,6 +108,64 @@ export default function RequisitionsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const [agentWorkflow, setAgentWorkflow] = useState(null);
+  const [isDossierOpen, setIsDossierOpen] = useState(false);
+  const [agentLoadingId, setAgentLoadingId] = useState(null);
+
+  async function handleRunAgentAnalysis(id) {
+    setAgentLoadingId(id);
+    setError("");
+
+    try {
+      const workflow = await analyzeRequisitionWithHrAgent(id);
+      setAgentWorkflow(workflow);
+      setIsDossierOpen(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAgentLoadingId(null);
+    }
+  }
+
+  async function handleSubmitWithApprovalGate(id) {
+    const confirmed = window.confirm(
+      "Submit requisition through AI Agent with mandatory HR Approval Gate?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setAgentLoadingId(id);
+    setError("");
+
+    try {
+      const workflow = await submitRequisitionWithHrApprovalGate(id);
+      setAgentWorkflow(workflow);
+      setIsDossierOpen(true);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAgentLoadingId(null);
+    }
+  }
+
+  async function handleViewAgentDossier(id) {
+    setAgentLoadingId(id);
+    setError("");
+
+    try {
+      const workflow = await getHrRequisitionAgentStatus(id);
+      setAgentWorkflow(workflow);
+      setIsDossierOpen(true);
+    } catch {
+      await handleRunAgentAnalysis(id);
+    } finally {
+      setAgentLoadingId(null);
+    }
+  }
+
   async function load() {
     setLoading(true);
     setError("");
@@ -117,6 +186,7 @@ export default function RequisitionsPage() {
     async function loadInitialRequisitions() {
       try {
         const data = await getMyRequisitions();
+
         if (!cancelled) {
           setItems(data);
         }
@@ -132,7 +202,10 @@ export default function RequisitionsPage() {
     }
 
     loadInitialRequisitions();
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function updateField(name, value) {
@@ -183,25 +256,15 @@ export default function RequisitionsPage() {
     try {
       const payload = {
         ...form,
-
         headcount: Number(form.headcount),
-
-        employmentType: Number(
-          form.employmentType
-        ),
-
+        employmentType: Number(form.employmentType),
         workMode: Number(form.workMode),
-
-        experienceLevel: Number(
-          form.experienceLevel
-        ),
+        experienceLevel: Number(form.experienceLevel),
 
         minExperienceYears:
           form.minExperienceYears === ""
             ? null
-            : Number(
-                form.minExperienceYears
-              ),
+            : Number(form.minExperienceYears),
 
         minSalary:
           form.minSalary === ""
@@ -213,15 +276,11 @@ export default function RequisitionsPage() {
             ? null
             : Number(form.maxSalary),
 
-        currency:
-          form.currency.trim() || "LKR",
+        currency: form.currency.trim() || "LKR",
       };
 
       if (editingId) {
-        await updateRequisition(
-          editingId,
-          payload
-        );
+        await updateRequisition(editingId, payload);
       } else {
         await createRequisition(payload);
       }
@@ -257,7 +316,6 @@ export default function RequisitionsPage() {
   return (
     <div className="min-h-screen bg-slate-50/50 px-6 py-7">
       <div className="mx-auto max-w-6xl space-y-7">
-        {/* Header */}
         <div className="rounded-2xl bg-slate-950 px-7 py-6 text-white shadow-sm">
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10">
@@ -270,8 +328,7 @@ export default function RequisitionsPage() {
               </h1>
 
               <p className="mt-1 text-sm text-slate-300">
-                Create internal hiring requests
-                and submit them to HR Manager
+                Create internal hiring requests and submit them to HR Manager
                 for approval.
               </p>
             </div>
@@ -284,7 +341,6 @@ export default function RequisitionsPage() {
           </div>
         )}
 
-        {/* Form */}
         <form
           onSubmit={handleSave}
           className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
@@ -297,13 +353,11 @@ export default function RequisitionsPage() {
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Enter the requested job
-              position details below.
+              Enter the requested job position details below.
             </p>
           </div>
 
           <div className="space-y-8 p-7">
-            {/* Basic Information */}
             <section>
               <div className="mb-5 flex items-center gap-2">
                 <Building2
@@ -320,9 +374,7 @@ export default function RequisitionsPage() {
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">
                     Position Title
-                    <span className="text-red-500">
-                      *
-                    </span>
+                    <span className="text-red-500">*</span>
                   </label>
 
                   <input
@@ -332,10 +384,7 @@ export default function RequisitionsPage() {
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                     value={form.positionTitle}
                     onChange={(e) =>
-                      updateField(
-                        "positionTitle",
-                        e.target.value
-                      )
+                      updateField("positionTitle", e.target.value)
                     }
                   />
                 </div>
@@ -343,9 +392,7 @@ export default function RequisitionsPage() {
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">
                     Department
-                    <span className="text-red-500">
-                      *
-                    </span>
+                    <span className="text-red-500">*</span>
                   </label>
 
                   <input
@@ -355,10 +402,7 @@ export default function RequisitionsPage() {
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                     value={form.department}
                     onChange={(e) =>
-                      updateField(
-                        "department",
-                        e.target.value
-                      )
+                      updateField("department", e.target.value)
                     }
                   />
                 </div>
@@ -366,9 +410,7 @@ export default function RequisitionsPage() {
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">
                     Headcount
-                    <span className="text-red-500">
-                      *
-                    </span>
+                    <span className="text-red-500">*</span>
                   </label>
 
                   <input
@@ -379,10 +421,7 @@ export default function RequisitionsPage() {
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                     value={form.headcount}
                     onChange={(e) =>
-                      updateField(
-                        "headcount",
-                        e.target.value
-                      )
+                      updateField("headcount", e.target.value)
                     }
                   />
                 </div>
@@ -390,9 +429,7 @@ export default function RequisitionsPage() {
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">
                     Location
-                    <span className="text-red-500">
-                      *
-                    </span>
+                    <span className="text-red-500">*</span>
                   </label>
 
                   <div className="relative">
@@ -408,10 +445,7 @@ export default function RequisitionsPage() {
                       className="w-full rounded-xl border border-slate-300 py-3 pl-11 pr-4 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                       value={form.location}
                       onChange={(e) =>
-                        updateField(
-                          "location",
-                          e.target.value
-                        )
+                        updateField("location", e.target.value)
                       }
                     />
                   </div>
@@ -426,27 +460,13 @@ export default function RequisitionsPage() {
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                     value={form.employmentType}
                     onChange={(e) =>
-                      updateField(
-                        "employmentType",
-                        e.target.value
-                      )
+                      updateField("employmentType", e.target.value)
                     }
                   >
-                    <option value={0}>
-                      Full Time
-                    </option>
-
-                    <option value={1}>
-                      Part Time
-                    </option>
-
-                    <option value={2}>
-                      Contract
-                    </option>
-
-                    <option value={3}>
-                      Internship
-                    </option>
+                    <option value={0}>Full Time</option>
+                    <option value={1}>Part Time</option>
+                    <option value={2}>Contract</option>
+                    <option value={3}>Internship</option>
                   </select>
                 </div>
 
@@ -459,23 +479,12 @@ export default function RequisitionsPage() {
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                     value={form.workMode}
                     onChange={(e) =>
-                      updateField(
-                        "workMode",
-                        e.target.value
-                      )
+                      updateField("workMode", e.target.value)
                     }
                   >
-                    <option value={0}>
-                      On Site
-                    </option>
-
-                    <option value={1}>
-                      Remote
-                    </option>
-
-                    <option value={2}>
-                      Hybrid
-                    </option>
+                    <option value={0}>On Site</option>
+                    <option value={1}>Remote</option>
+                    <option value={2}>Hybrid</option>
                   </select>
                 </div>
 
@@ -488,38 +497,20 @@ export default function RequisitionsPage() {
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                     value={form.experienceLevel}
                     onChange={(e) =>
-                      updateField(
-                        "experienceLevel",
-                        e.target.value
-                      )
+                      updateField("experienceLevel", e.target.value)
                     }
                   >
-                    <option value={0}>
-                      Entry
-                    </option>
-
-                    <option value={1}>
-                      Junior
-                    </option>
-
-                    <option value={2}>
-                      Mid
-                    </option>
-
-                    <option value={3}>
-                      Senior
-                    </option>
-
-                    <option value={4}>
-                      Lead
-                    </option>
+                    <option value={0}>Entry</option>
+                    <option value={1}>Junior</option>
+                    <option value={2}>Mid</option>
+                    <option value={3}>Senior</option>
+                    <option value={4}>Lead</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">
-                    Minimum Experience
-                    (Years)
+                    Minimum Experience (Years)
                   </label>
 
                   <input
@@ -527,9 +518,7 @@ export default function RequisitionsPage() {
                     min="0"
                     max="50"
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
-                    value={
-                      form.minExperienceYears
-                    }
+                    value={form.minExperienceYears}
                     onChange={(e) =>
                       updateField(
                         "minExperienceYears",
@@ -541,7 +530,6 @@ export default function RequisitionsPage() {
               </div>
             </section>
 
-            {/* Salary */}
             <section className="border-t border-slate-200 pt-7">
               <div className="mb-5 flex items-center gap-2">
                 <CircleDollarSign
@@ -567,10 +555,7 @@ export default function RequisitionsPage() {
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                     value={form.minSalary}
                     onChange={(e) =>
-                      updateField(
-                        "minSalary",
-                        e.target.value
-                      )
+                      updateField("minSalary", e.target.value)
                     }
                   />
                 </div>
@@ -587,10 +572,7 @@ export default function RequisitionsPage() {
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                     value={form.maxSalary}
                     onChange={(e) =>
-                      updateField(
-                        "maxSalary",
-                        e.target.value
-                      )
+                      updateField("maxSalary", e.target.value)
                     }
                   />
                 </div>
@@ -604,33 +586,18 @@ export default function RequisitionsPage() {
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                     value={form.currency}
                     onChange={(e) =>
-                      updateField(
-                        "currency",
-                        e.target.value
-                      )
+                      updateField("currency", e.target.value)
                     }
                   >
-                    <option value="LKR">
-                      LKR
-                    </option>
-
-                    <option value="USD">
-                      USD
-                    </option>
-
-                    <option value="EUR">
-                      EUR
-                    </option>
-
-                    <option value="GBP">
-                      GBP
-                    </option>
+                    <option value="LKR">LKR</option>
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
                   </select>
                 </div>
               </div>
             </section>
 
-            {/* Description */}
             <section className="border-t border-slate-200 pt-7">
               <div className="mb-5 flex items-center gap-2">
                 <FileText
@@ -656,10 +623,7 @@ export default function RequisitionsPage() {
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                     value={form.description}
                     onChange={(e) =>
-                      updateField(
-                        "description",
-                        e.target.value
-                      )
+                      updateField("description", e.target.value)
                     }
                   />
                 </div>
@@ -674,9 +638,7 @@ export default function RequisitionsPage() {
                     maxLength={3000}
                     placeholder="List the main responsibilities..."
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
-                    value={
-                      form.responsibilities
-                    }
+                    value={form.responsibilities}
                     onChange={(e) =>
                       updateField(
                         "responsibilities",
@@ -698,17 +660,13 @@ export default function RequisitionsPage() {
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                     value={form.requirements}
                     onChange={(e) =>
-                      updateField(
-                        "requirements",
-                        e.target.value
-                      )
+                      updateField("requirements", e.target.value)
                     }
                   />
                 </div>
               </div>
             </section>
 
-            {/* Business justification */}
             <section className="border-t border-slate-200 pt-7">
               <div className="mb-5 flex items-center gap-2">
                 <Users
@@ -723,8 +681,7 @@ export default function RequisitionsPage() {
 
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Why is this position
-                  needed?
+                  Why is this position needed?
                 </label>
 
                 <textarea
@@ -734,16 +691,12 @@ export default function RequisitionsPage() {
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                   value={form.justification}
                   onChange={(e) =>
-                    updateField(
-                      "justification",
-                      e.target.value
-                    )
+                    updateField("justification", e.target.value)
                   }
                 />
               </div>
             </section>
 
-            {/* Actions */}
             <div className="flex flex-wrap gap-3 border-t border-slate-200 pt-7">
               <button
                 type="submit"
@@ -772,7 +725,6 @@ export default function RequisitionsPage() {
           </div>
         </form>
 
-        {/* Existing requisitions */}
         <div>
           <div className="mb-4">
             <h2 className="text-xl font-semibold text-slate-900">
@@ -780,9 +732,7 @@ export default function RequisitionsPage() {
             </h2>
 
             <p className="text-sm text-slate-500">
-              Track draft, submitted,
-              approved and rejected
-              requisitions.
+              Track draft, submitted, approved and rejected requisitions.
             </p>
           </div>
 
@@ -802,18 +752,13 @@ export default function RequisitionsPage() {
               </p>
 
               <p className="mt-1 text-sm text-slate-500">
-                Create your first job
-                requisition using the
-                form above.
+                Create your first job requisition using the form above.
               </p>
             </div>
           ) : (
             <div className="space-y-4">
               {items.map((item) => {
-                const status =
-                  getStatusLabel(
-                    item.status
-                  );
+                const status = getStatusLabel(item.status);
 
                 const editable =
                   status === "Draft" ||
@@ -827,14 +772,11 @@ export default function RequisitionsPage() {
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
                         <h3 className="text-lg font-semibold text-slate-900">
-                          {
-                            item.positionTitle
-                          }
+                          {item.positionTitle}
                         </h3>
 
                         <p className="mt-1 text-sm text-slate-500">
-                          {item.department} •{" "}
-                          {item.location}
+                          {item.department} • {item.location}
                         </p>
                       </div>
 
@@ -864,12 +806,7 @@ export default function RequisitionsPage() {
                         </p>
 
                         <p className="mt-1 font-medium text-slate-700">
-                          {
-                            employmentTypeLabels[
-                              item
-                                .employmentType
-                            ]
-                          }
+                          {employmentTypeLabels[item.employmentType]}
                         </p>
                       </div>
 
@@ -879,11 +816,7 @@ export default function RequisitionsPage() {
                         </p>
 
                         <p className="mt-1 font-medium text-slate-700">
-                          {
-                            workModeLabels[
-                              item.workMode
-                            ]
-                          }
+                          {workModeLabels[item.workMode]}
                         </p>
                       </div>
 
@@ -893,12 +826,7 @@ export default function RequisitionsPage() {
                         </p>
 
                         <p className="mt-1 font-medium text-slate-700">
-                          {
-                            experienceLevelLabels[
-                              item
-                                .experienceLevel
-                            ]
-                          }
+                          {experienceLevelLabels[item.experienceLevel]}
                         </p>
                       </div>
                     </div>
@@ -919,43 +847,80 @@ export default function RequisitionsPage() {
                         </p>
 
                         <p className="mt-1 text-sm text-red-700">
-                          {
-                            item.hrFeedback
-                          }
+                          {item.hrFeedback}
                         </p>
                       </div>
                     )}
 
-                    {editable && (
-                      <div className="mt-5 flex flex-wrap gap-3">
+                    <div className="mt-5 flex flex-wrap items-center gap-3">
+                      {editable && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(item)}
+                            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={agentLoadingId === item.id}
+                            onClick={() =>
+                              handleRunAgentAnalysis(item.id)
+                            }
+                            className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50/70 px-4 py-2.5 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100"
+                          >
+                            <Sparkles size={16} />
+                            {agentLoadingId === item.id
+                              ? "Analyzing..."
+                              : "AI Readiness Check"}
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={agentLoadingId === item.id}
+                            onClick={() =>
+                              handleSubmitWithApprovalGate(item.id)
+                            }
+                            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-xs transition hover:bg-indigo-700"
+                          >
+                            <ShieldCheck size={16} />
+                            Submit with AI Gate
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleSubmit(item.id)}
+                            className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+                          >
+                            <Send size={16} />
+                            {status === "Rejected"
+                              ? "Resubmit to HR"
+                              : "Standard Submit"}
+                          </button>
+                        </>
+                      )}
+
+                      {!editable && (
                         <button
                           type="button"
+                          disabled={agentLoadingId === item.id}
                           onClick={() =>
-                            startEdit(item)
+                            handleViewAgentDossier(item.id)
                           }
-                          className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                         >
-                          Edit
+                          <Bot
+                            size={16}
+                            className="text-indigo-600"
+                          />
+                          {agentLoadingId === item.id
+                            ? "Loading..."
+                            : "View AI Agent Dossier"}
                         </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleSubmit(
-                              item.id
-                            )
-                          }
-                          className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
-                        >
-                          <Send size={16} />
-
-                          {status ===
-                          "Rejected"
-                            ? "Resubmit to HR"
-                            : "Submit to HR"}
-                        </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -963,6 +928,12 @@ export default function RequisitionsPage() {
           )}
         </div>
       </div>
+
+      <HrRequisitionAgentDossierModal
+        isOpen={isDossierOpen}
+        onClose={() => setIsDossierOpen(false)}
+        workflow={agentWorkflow}
+      />
     </div>
   );
 }
