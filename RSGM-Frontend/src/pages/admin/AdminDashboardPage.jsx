@@ -17,6 +17,9 @@ function AdminDashboardPage() {
     totalCompanies: 0,
     totalJobPostings: 0,
     totalApplications: 0,
+    totalSkills: 0,
+    publishedJobPostings: 0,
+    newUsersLast30Days: 0,
   });
 
   const [loading, setLoading] = useState(true);
@@ -35,6 +38,9 @@ function AdminDashboardPage() {
             totalCompanies: data.totalCompanies ?? 0,
             totalJobPostings: data.totalJobPostings ?? 0,
             totalApplications: data.totalApplications ?? 0,
+            totalSkills: data.totalSkills ?? 0,
+            publishedJobPostings: data.publishedJobPostings ?? 0,
+            newUsersLast30Days: data.newUsersLast30Days ?? 0,
           });
         }
       } catch (err) {
@@ -130,6 +136,21 @@ function AdminDashboardPage() {
                 </div>
               );
             })}
+          </div>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <div className="rounded-2xl border border-neutral-200 bg-white p-5">
+              <p className="text-sm text-neutral-500">Skills in Catalog</p>
+              <p className="mt-2 text-2xl font-semibold">{stats.totalSkills}</p>
+            </div>
+            <div className="rounded-2xl border border-neutral-200 bg-white p-5">
+              <p className="text-sm text-neutral-500">Published Jobs</p>
+              <p className="mt-2 text-2xl font-semibold">{stats.publishedJobPostings}</p>
+            </div>
+            <div className="rounded-2xl border border-neutral-200 bg-white p-5">
+              <p className="text-sm text-neutral-500">New Users (30 days)</p>
+              <p className="mt-2 text-2xl font-semibold">{stats.newUsersLast30Days}</p>
+            </div>
           </div>
 
           <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-5">
