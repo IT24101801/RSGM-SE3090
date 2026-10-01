@@ -8,6 +8,7 @@ using Microsoft.OpenApi.Models;
 using RSGM.Api.Data;
 using RSGM.Api.Models.Entities;
 using RSGM.Api.Services;
+using RSGM.Api.Services.Agents.InterviewSchedulingCoordinationAgent;
 using RSGM.Api.Services.Agents.SkillMatchingShortlisting;
 using RSGM.Api.Services.HrAgenticServices;
 
@@ -301,6 +302,10 @@ builder.Services.AddScoped<IHrAgentTool, HrCreateApprovalRequestTool>();
 builder.Services.AddScoped<HrJobRequisitionAgent>();
 builder.Services.AddScoped<HrWorkflowCoordinator>();
 
+
+builder.Services.AddInterviewSchedulingCoordinationAgent(
+    builder.Configuration,
+    connectionString);
 
 
 
