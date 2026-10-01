@@ -9,6 +9,8 @@ using RSGM.Api.Data;
 using RSGM.Api.Models.Entities;
 using RSGM.Api.Services;
 using RSGM.Api.Services.Agents.InterviewSchedulingCoordinationAgent;
+using RSGM.Api.Services.Agents.SkillMatchingShortlisting;
+using RSGM.Api.Services.HrAgenticServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -91,6 +93,10 @@ var connectionString =
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
+
+builder.Services.AddSkillMatchingShortlistingAgent(
+    builder.Configuration,
+    connectionString);
 
 
 // ======================================================
@@ -279,6 +285,23 @@ builder.Services.AddScoped<
     InterviewAvailabilityService>();
 
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+// ======================================================
+// AGENTIC AI (HR FUNCTIONS)
+// ======================================================
+builder.Services.AddHttpClient<IHrAiCompletionService, HrGeminiOrFallbackAiService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
+builder.Services.AddScoped<IHrAgentTool, HrValidateRequisitionReadinessTool>();
+builder.Services.AddScoped<IHrAgentTool, HrRecommendRequisitionSkillsTool>();
+builder.Services.AddScoped<IHrAgentTool, HrAuditSalaryBenchmarkTool>();
+builder.Services.AddScoped<IHrAgentTool, HrGenerateApprovalSummaryTool>();
+builder.Services.AddScoped<IHrAgentTool, HrCreateApprovalRequestTool>();
+
+builder.Services.AddScoped<HrJobRequisitionAgent>();
+builder.Services.AddScoped<HrWorkflowCoordinator>();
+
 
 builder.Services.AddInterviewSchedulingCoordinationAgent(
     builder.Configuration,
