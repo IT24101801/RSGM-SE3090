@@ -16,23 +16,39 @@ function AdminAuditLogsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  async function loadLogs(isRefresh = false) {
+  async function refreshLogs() {
     try {
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
+      setRefreshing(true);
       setError("");
       const data = await getAdminAuditLogs(200);
       setLogs(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message || "Failed to load audit logs.");
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   }
 
   useEffect(() => {
-    loadLogs();
+    let cancelled = false;
+
+    getAdminAuditLogs(200)
+      .then((data) => {
+        if (cancelled) return;
+        setLogs(Array.isArray(data) ? data : []);
+        setError("");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err.message || "Failed to load audit logs.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const filteredLogs = useMemo(() => {
@@ -61,7 +77,7 @@ function AdminAuditLogsPage() {
         </div>
         <button
           type="button"
-          onClick={() => loadLogs(true)}
+          onClick={refreshLogs}
           disabled={refreshing}
           className="inline-flex h-10 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
         >
@@ -117,7 +133,7 @@ function AdminAuditLogsPage() {
                   {log.severity}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-neutral-500 wrap-break-word">{log.target}</p>
+              <p className="mt-1 text-sm text-neutral-500 break-words">{log.target}</p>
               <p className="mt-1 text-xs text-neutral-400">
                 {log.actor} · {new Date(log.timestamp).toLocaleString()}
               </p>

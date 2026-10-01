@@ -16,23 +16,39 @@ function AdminWorkflowsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  async function loadWorkflows(isRefresh = false) {
+  async function refreshWorkflows() {
     try {
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
+      setRefreshing(true);
       setError("");
       const data = await getAdminAgentWorkflows(200);
       setWorkflows(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message || "Failed to load AI workflows.");
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   }
 
   useEffect(() => {
-    loadWorkflows();
+    let cancelled = false;
+
+    getAdminAgentWorkflows(200)
+      .then((data) => {
+        if (cancelled) return;
+        setWorkflows(Array.isArray(data) ? data : []);
+        setError("");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err.message || "Failed to load AI workflows.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const visibleWorkflows = useMemo(() => {
@@ -62,7 +78,7 @@ function AdminWorkflowsPage() {
         </div>
         <button
           type="button"
-          onClick={() => loadWorkflows(true)}
+          onClick={refreshWorkflows}
           disabled={refreshing}
           className="inline-flex h-10 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
         >
@@ -112,8 +128,8 @@ function AdminWorkflowsPage() {
                   <p className="text-sm font-medium text-neutral-900">{workflow.name}</p>
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusClass(workflow.status, workflow.isFailed)}`}>{workflow.status}</span>
                 </div>
-                <p className="mt-1 text-sm text-neutral-500 wrap-break-word">{workflow.subject}</p>
-                {workflow.error && workflow.isFailed && <p className="mt-1 text-xs text-red-600 wrap-break-word">{workflow.error}</p>}
+                <p className="mt-1 text-sm text-neutral-500 break-words">{workflow.subject}</p>
+                {workflow.error && workflow.isFailed && <p className="mt-1 text-xs text-red-600 break-words">{workflow.error}</p>}
                 <p className="mt-1 text-xs text-neutral-400">Updated {new Date(workflow.updatedAt).toLocaleString()}</p>
               </div>
             </div>

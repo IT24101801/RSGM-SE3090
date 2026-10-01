@@ -10,22 +10,38 @@ function AdminStatsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  async function loadStats(isRefresh = false) {
+  async function refreshStats() {
     try {
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
+      setRefreshing(true);
       setError("");
       setStats(await getAdminStatistics());
     } catch (err) {
       setError(err.message || "Failed to load statistics.");
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   }
 
   useEffect(() => {
-    loadStats();
+    let cancelled = false;
+
+    getAdminStatistics()
+      .then((data) => {
+        if (cancelled) return;
+        setStats(data);
+        setError("");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err.message || "Failed to load statistics.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const roleBreakdown = useMemo(() => stats?.roleBreakdown ?? [], [stats]);
@@ -52,7 +68,7 @@ function AdminStatsPage() {
         </div>
         <button
           type="button"
-          onClick={() => loadStats(true)}
+          onClick={refreshStats}
           disabled={refreshing}
           className="inline-flex h-10 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
         >
