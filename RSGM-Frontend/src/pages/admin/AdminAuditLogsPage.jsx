@@ -133,7 +133,7 @@ function AdminAuditLogsPage() {
                   {log.severity}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-neutral-500 break-words">{log.target}</p>
+              <p className="mt-1 text-sm text-neutral-500 wrap-break-word">{log.target}</p>
               <p className="mt-1 text-xs text-neutral-400">
                 {log.actor} · {new Date(log.timestamp).toLocaleString()}
               </p>

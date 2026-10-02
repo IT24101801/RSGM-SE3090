@@ -128,8 +128,8 @@ function AdminWorkflowsPage() {
                   <p className="text-sm font-medium text-neutral-900">{workflow.name}</p>
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusClass(workflow.status, workflow.isFailed)}`}>{workflow.status}</span>
                 </div>
-                <p className="mt-1 text-sm text-neutral-500 break-words">{workflow.subject}</p>
-                {workflow.error && workflow.isFailed && <p className="mt-1 text-xs text-red-600 break-words">{workflow.error}</p>}
+                <p className="mt-1 text-sm text-neutral-500 wrap-break-word">{workflow.subject}</p>
+                {workflow.error && workflow.isFailed && <p className="mt-1 text-xs text-red-600 wrap-break-word">{workflow.error}</p>}
                 <p className="mt-1 text-xs text-neutral-400">Updated {new Date(workflow.updatedAt).toLocaleString()}</p>
               </div>
             </div>
