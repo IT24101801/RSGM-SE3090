@@ -1,3 +1,6 @@
+import 'package:flutter/foundation.dart';
+
 class ApiConfig {
-  static const String baseUrl = 'http://10.0.2.2:5248/api';
+  static String get baseUrl =>
+      kIsWeb ? 'http://localhost:5248/api' : 'http://10.0.2.2:5248/api';
 }
