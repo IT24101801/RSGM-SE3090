@@ -356,7 +356,7 @@ app.UseHttpsRedirection();
 // IMPORTANT:
 // Authentication must come BEFORE Authorization.
 
-app.UseCors("ReactFrontend");
+app.UseCors("DevelopmentCors");
 
 app.UseAuthentication();
 
