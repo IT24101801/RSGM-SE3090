@@ -9,6 +9,7 @@ using RSGM.Api.Data;
 using RSGM.Api.Models.Entities;
 using RSGM.Api.Services;
 using RSGM.Api.Services.Agents.SkillMatchingShortlisting;
+using RSGM.Api.Services.Agents.InterviewSchedulingCoordinationAgent;
 using RSGM.Api.Services.HrAgenticServices;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -300,6 +301,13 @@ builder.Services.AddScoped<IHrAgentTool, HrCreateApprovalRequestTool>();
 
 builder.Services.AddScoped<HrJobRequisitionAgent>();
 builder.Services.AddScoped<HrWorkflowCoordinator>();
+
+// ======================================================
+// INTERVIEW SCHEDULING & COORDINATION AGENT
+// ======================================================
+builder.Services.AddInterviewSchedulingCoordinationAgent(
+    builder.Configuration,
+    connectionString);
 
 
 
