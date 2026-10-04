@@ -166,34 +166,95 @@ public sealed class JobSeekerCareerWorkflowService
             var request = await BuildRequestAsync(workflow, ct);
             var key = _configuration["AgentService:Key"];
             if (string.IsNullOrWhiteSpace(key))
-                throw new InvalidOperationException("Agent service key is missing.");
+            {
+                _logger.LogError("Agent service key is missing for career workflow {WorkflowId}", workflow.Id);
+                MarkSafeFailure(workflow,
+                    "The AI service is not configured correctly. Contact an administrator.",
+                    "AGENT_SERVICE_CONFIGURATION: Agent service credentials are unavailable.");
+                return;
+            }
 
             using var message = new HttpRequestMessage(HttpMethod.Post, "internal/workflows/jobseeker-career")
             {
                 Content = JsonContent.Create(request)
             };
             message.Headers.Add("X-Agent-Service-Key", key);
-            using var response = await _client.SendAsync(message, ct);
-            response.EnsureSuccessStatusCode();
-            var result = await response.Content.ReadFromJsonAsync<CareerWorkflowResponse>(cancellationToken: ct);
 
+            using var response = await _client.SendAsync(message, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning(
+                    "Career agent service returned HTTP {StatusCode} for workflow {WorkflowId}. Body: {Body}",
+                    (int)response.StatusCode, workflow.Id, Limit(body, 1000));
+
+                MarkSafeFailure(workflow,
+                    "The AI service is temporarily unavailable. Please retry later.",
+                    $"AGENT_SERVICE_HTTP_{(int)response.StatusCode}: Agent service request failed.");
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<CareerWorkflowResponse>(cancellationToken: ct);
             ValidateAgentResponse(workflow.Id, request.Jobs, result);
             SaveAgentResponse(workflow, result!);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException
-                                   or InvalidOperationException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            _logger.LogWarning(ex, "Career agent workflow {WorkflowId} failed safely", workflow.Id);
-            workflow.Status = "SafelyFailed";
-            workflow.CurrentStep = "SafeFailure";
-            workflow.ApprovalStatus = "NotAvailable";
-            workflow.ErrorSummary = "The AI workflow could not finish safely. Verify the agent service and Groq configuration, then retry.";
-            workflow.ValidationJson = JsonSerializer.Serialize(new CareerValidation(false,
-                ["Agent workflow execution failed."], []));
-            workflow.CompletedAt = DateTime.UtcNow;
+            // Respect application/request cancellation instead of incorrectly recording it as an AI failure.
+            throw;
         }
-        workflow.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Career agent workflow {WorkflowId} timed out", workflow.Id);
+            MarkSafeFailure(workflow,
+                "The AI service took too long to respond. Please retry.",
+                "AGENT_SERVICE_TIMEOUT: The agent service request timed out.");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Career agent workflow {WorkflowId} could not reach the agent service", workflow.Id);
+            MarkSafeFailure(workflow,
+                "The AI service is temporarily unavailable. Please retry later.",
+                "AGENT_SERVICE_UNAVAILABLE: The backend could not reach the agent service.");
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Career agent workflow {WorkflowId} returned malformed JSON", workflow.Id);
+            MarkSafeFailure(workflow,
+                "The AI service returned an invalid response. Please retry.",
+                "AGENT_RESPONSE_INVALID_JSON: The agent response could not be read safely.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(ex, "Career agent workflow {WorkflowId} failed contract validation", workflow.Id);
+            MarkSafeFailure(workflow,
+                "The AI response failed server safety checks and was not accepted.",
+                "AGENT_RESPONSE_CONTRACT_REJECTED: The response failed backend validation.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected career agent workflow failure {WorkflowId}", workflow.Id);
+            MarkSafeFailure(workflow,
+                "The AI workflow could not finish safely. Please retry. If the problem continues, contact an administrator.",
+                "WORKFLOW_INTERNAL_ERROR: An unexpected server error occurred.");
+        }
+        finally
+        {
+            workflow.UpdatedAt = DateTime.UtcNow;
+            if (!ct.IsCancellationRequested)
+                await _db.SaveChangesAsync(ct);
+        }
+    }
+
+    private static void MarkSafeFailure(JobSeekerAiWorkflow workflow, string userMessage, string validationError)
+    {
+        workflow.Status = "SafelyFailed";
+        workflow.CurrentStep = "SafeFailure";
+        workflow.ApprovalStatus = "NotAvailable";
+        workflow.ErrorSummary = userMessage[..Math.Min(userMessage.Length, 1000)];
+        workflow.ValidationJson = JsonSerializer.Serialize(new CareerValidation(false,
+            [validationError], []));
+        workflow.CompletedAt = DateTime.UtcNow;
     }
 
     private async Task<CareerWorkflowRequest> BuildRequestAsync(JobSeekerAiWorkflow workflow, CancellationToken ct)
