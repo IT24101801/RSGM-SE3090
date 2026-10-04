@@ -125,7 +125,7 @@ class _JobSeekerJobsScreenState extends State<JobSeekerJobsScreen> {
         padding: const EdgeInsets.all(16),
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: shownJobs.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
           final job = shownJobs[index];
 
