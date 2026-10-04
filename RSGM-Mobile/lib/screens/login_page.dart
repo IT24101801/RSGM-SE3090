@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/rsgm_widgets.dart';
+import 'recruiter/recruiter_main_screen.dart';
+import 'jobseeker/jobseeker_main_screen.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -37,8 +39,24 @@ class _LoginPageState extends State<LoginPage> {
         rememberMe: _remember,
       );
       if (!mounted) return;
-      final roles = data['roles'] is List ? (data['roles'] as List).join(', ') : 'User';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Signed in successfully as $roles.')));
+      final rolesList = data['roles'] is List
+          ? (data['roles'] as List).map((e) => e.toString()).toList()
+          : <String>[];
+      final rolesStr = rolesList.isNotEmpty ? rolesList.join(', ') : 'User';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Signed in successfully as $rolesStr.')),
+      );
+      if (rolesList.contains('Recruiter')) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const RecruiterMainScreen()),
+        );
+      } else if (rolesList.contains('JobSeeker')) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const JobSeekerMainScreen()),
+        );
+      }
     } on AuthException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
