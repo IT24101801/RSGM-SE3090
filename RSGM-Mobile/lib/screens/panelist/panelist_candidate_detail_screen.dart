@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../../models/panelist/panelist_candidate.dart';
 import '../../services/api_client.dart';
 import '../../services/panelist/panelist_shortlist_service.dart';
 import '../../theme/app_theme.dart';
+
 
 class PanelistCandidateDetailScreen extends StatefulWidget {
   const PanelistCandidateDetailScreen({
@@ -31,6 +33,7 @@ class _PanelistCandidateDetailScreenState
   PanelistCandidate? _candidate;
   bool _loading = true;
   String? _error;
+  bool _savingCv = false;
 
   @override
   void initState() {
@@ -69,6 +72,67 @@ class _PanelistCandidateDetailScreenState
         _error = 'Unable to load candidate details.';
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _saveCv() async {
+    if (_savingCv) return;
+
+    setState(() {
+      _savingCv = true;
+    });
+
+    try {
+      final cv = await _service.downloadCandidateCv(
+       widget.applicationId,
+      );
+
+      if (cv.isEmpty) {
+        throw const ApiException(
+          message: 'The downloaded CV is empty.',
+        );
+      }
+
+      final savedUri = await FilePicker.saveFile(
+        dialogTitle: 'Save candidate CV',
+        fileName: cv.fileName,
+        bytes: cv.bytes,
+        mimeType: cv.contentType,
+      );
+
+      if (!mounted) return;
+
+      if (savedUri != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'CV saved successfully: ${cv.fileName}',
+          ),
+        ),
+      );
+    }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to save the candidate CV.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _savingCv = false;
+        });
+      }
     }
   }
 
@@ -461,28 +525,67 @@ class _PanelistCandidateDetailScreenState
       title: 'CV',
       icon: Icons.description_outlined,
       child: candidate.hasCv
-          ? Row(
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  size: 20,
-                  color: Color(0xFF059669),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    candidate.cvFileName ?? 'Candidate CV available',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.ink,
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      size: 20,
+                      color: Color(0xFF059669),
                     ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        candidate.cvFileName ??
+                            'Candidate CV available',
+                        style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.ink,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _savingCv ? null : _saveCv,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: amber,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 13,
+                      ),
+                    ),
+                    icon: _savingCv
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.download_rounded,
+                          ),
+                    label: Text(
+                      _savingCv
+                          ? 'Downloading...'
+                          : 'Save CV',
                   ),
                 ),
-              ],
-            )
+              ),
+            ],
+          )
           : const Text(
               'No CV uploaded.',
-              style: TextStyle(color: AppTheme.muted),
+              style: TextStyle(
+                color: AppTheme.muted,
+              ),
             ),
     );
   }
