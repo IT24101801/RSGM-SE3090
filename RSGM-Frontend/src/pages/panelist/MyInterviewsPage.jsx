@@ -70,7 +70,9 @@ export default function MyInterviewsPage() {
       const choices = slots.filter((slot) => slot !== i.scheduledAt);
 
       if (!choices.length) {
-        setError("No other free office-hour slots are available. Check each participant's busy schedule.");
+        setError(
+          "No other free office-hour slots are available. Check each participant's busy schedule.",
+        );
         return;
       }
 
@@ -82,21 +84,22 @@ export default function MyInterviewsPage() {
       setNewSlot(choices[0]);
     } catch (e) {
       setError(e.message);
-    } 
+    }
   }
+
   async function submitReschedule(e) {
     e.preventDefault();
 
     if (!rescheduleFor || !newSlot) return;
 
-      setBusy(true);
-      setError("");
+    setBusy(true);
+    setError("");
 
-      try {
-        await changeInterviewTime(
-          rescheduleFor.interview.id,
-          newSlot
-        );
+    try {
+      await changeInterviewTime(
+        rescheduleFor.interview.id,
+        newSlot,
+      );
 
       await refresh();
 
@@ -107,6 +110,14 @@ export default function MyInterviewsPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submitRecommendation(e) {
+    e.preventDefault();
+    setBusy(true); setError("");
+    try { await recommendCandidate(recommendFor.id, choice === "yes", rationale.trim()); await refresh(); setRecommendFor(null); setRationale(""); }
+    catch (err) { setError(err.message); }
+    finally { setBusy(false); }
   }
 
   return <div>
@@ -137,7 +148,6 @@ export default function MyInterviewsPage() {
       </div>)}
     </div>
     {recommendFor && <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 p-4"><form onSubmit={submitRecommendation} className="w-full max-w-lg space-y-4 rounded-3xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">Recommendation to HR</h2><p className="mt-1 text-sm text-neutral-500">{recommendFor.candidate} · {recommendFor.job}</p></div><button type="button" aria-label="Close" onClick={() => setRecommendFor(null)}>✕</button></div><label className="block text-sm font-medium">Decision<select className="mt-2 w-full rounded-xl border border-neutral-200 p-3" value={choice} onChange={(e) => setChoice(e.target.value)}><option value="yes">Recommend</option><option value="no">Do not recommend</option></select></label><label className="block text-sm font-medium">Rationale<textarea required maxLength={2000} rows={5} value={rationale} onChange={(e) => setRationale(e.target.value)} className="mt-2 w-full rounded-xl border border-neutral-200 p-3" /></label><button disabled={busy || !rationale.trim()} className="w-full rounded-xl bg-amber-600 py-3 text-sm font-semibold text-white disabled:opacity-50">Submit to HR</button></form></div>}
-
     {rescheduleFor && (
       <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 p-4 backdrop-blur-sm"
@@ -192,7 +202,7 @@ export default function MyInterviewsPage() {
 
             <p className="mt-1 text-sm font-medium text-neutral-800">
               {new Date(
-                rescheduleFor.interview.scheduledAt
+                rescheduleFor.interview.scheduledAt,
               ).toLocaleString()}
             </p>
           </div>
