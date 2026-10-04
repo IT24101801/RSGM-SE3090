@@ -1,59 +1,93 @@
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
-
-from app.coordinator import WorkflowCoordinator
-from app.main import app
-from app.schemas import CandidateSnapshot, JobSnapshot, Readiness, ReadinessRequest
-
-
-def snapshot(**changes):
-    data = dict(workflow_id=uuid4(), application_id=uuid4(), application_status="UnderReview",
-                job=JobSnapshot(id=uuid4(), status="Published", required_skill_ids=[uuid4()]),
-                candidate=CandidateSnapshot(has_cv=True, skill_ids=[uuid4()], has_headline=True,
-                                            has_bio=True, education_count=0, work_experience_count=0))
-    data.update(changes)
-    return ReadinessRequest(**data)
+from career_schemas import (
+    CandidateProfileInput,
+    CareerAdvice,
+    JobInput,
+    JobMatch,
+    ProfileAnalysis,
+    RequiredSkillInput,
+    SkillInput,
+)
+from tools.career_validation import validate_career_result
+from tools.skill_names import canonicalize_known_skills, resolve_skill_name, build_skill_alias_index
 
 
-def test_eligible_candidate_without_work_history_is_ready():
-    result = WorkflowCoordinator().run(snapshot())
-    assert result.readiness_status == Readiness.READY
-    assert result.workflow_eligible
-    assert result.next_step == "SkillMatching"
+def test_sql_short_name_resolves_to_canonical_database_name():
+    canonical = ["SQL (Structured Query Language)", "React"]
+    index = build_skill_alias_index(canonical)
+
+    assert resolve_skill_name("SQL", index) == "SQL (Structured Query Language)"
+    assert canonicalize_known_skills(["SQL", "React"], canonical) == [
+        "SQL (Structured Query Language)",
+        "React",
+    ]
 
 
-def test_missing_cv_does_not_modify_business_status():
-    request = snapshot(candidate=CandidateSnapshot(has_cv=False, skill_ids=[uuid4()],
-        has_headline=True, has_bio=True, education_count=1, work_experience_count=0))
-    result = WorkflowCoordinator().run(request)
-    assert result.readiness_status == Readiness.ATTENTION
-    assert "CV_MISSING" in [w.code for w in result.warnings]
-    assert request.application_status == "UnderReview"
+def test_unknown_skill_is_rejected_but_sql_alias_is_accepted():
+    sql_id = uuid4()
+    job_id = uuid4()
 
+    candidate = CandidateProfileInput(
+        headline="Student",
+        location="Colombo",
+        bio="AI undergraduate",
+        has_cv=True,
+        skills=[
+            SkillInput(id=sql_id, name="SQL (Structured Query Language)", proficiency_level=4),
+        ],
+        education=[],
+        experience=[],
+    )
 
-def test_withdrawn_is_skipped():
-    result = WorkflowCoordinator().run(snapshot(application_status="Withdrawn"))
-    assert result.readiness_status == Readiness.SKIPPED
-    assert not result.workflow_eligible
+    job = JobInput(
+        id=job_id,
+        title="Data Intern",
+        company="Example",
+        location="Remote",
+        employment_type="Internship",
+        work_mode="Remote",
+        experience_level="Entry",
+        min_experience_years=0,
+        description=None,
+        requirements=None,
+        required_skills=[
+            RequiredSkillInput(id=sql_id, name="SQL (Structured Query Language)", weight=100),
+        ],
+    )
 
+    profile = ProfileAnalysis(
+        primary_career_area="Data",
+        experience_level="Entry",
+        strong_skills=["SQL"],
+        developing_skills=["Imaginary Skill"],
+        strengths=["Learner"],
+        profile_gaps=["Limited recorded experience"],
+        suitable_role_types=["Data Intern"],
+        summary="Entry-level candidate.",
+    )
 
-def test_service_key_is_required(monkeypatch):
-    monkeypatch.setenv("RSGM_AGENT_SERVICE_KEY", "a-local-test-secret")
-    client = TestClient(app)
-    assert client.post("/internal/workflows/application-readiness", json=snapshot().model_dump(mode="json")).status_code == 401
-    response = client.post("/internal/workflows/application-readiness", json=snapshot().model_dump(mode="json"),
-                           headers={"X-Agent-Service-Key": "a-local-test-secret"})
-    assert response.status_code == 200
-    assert response.json()["readinessStatus"] == "ReadyForMatching"
+    match = JobMatch(
+        job_id=job_id,
+        title="Data Intern",
+        company="Example",
+        match_score=50,
+        matched_skills=["SQL"],
+        missing_skills=[],
+        experience_score=0,
+        explanation="Deterministic match.",
+    )
 
+    advice = CareerAdvice(
+        selected_job_id=job_id,
+        headline_suggestion=None,
+        learning_priorities=[],
+        application_tips=[],
+        summary="Review before applying.",
+    )
 
-def test_agent_failure_is_safe():
-    class BrokenAgent:
-        def assess(self, _snapshot):
-            raise RuntimeError("internal failure")
+    result = validate_career_result(candidate, [job], profile, [match], advice)
 
-    result = WorkflowCoordinator(BrokenAgent()).run(snapshot())
-    assert result.readiness_status == Readiness.FAILED
-    assert not result.workflow_eligible
-    assert result.next_step == "RetryOrManualReview"
+    assert not result.valid
+    assert any("Imaginary Skill" in error for error in result.errors)
+    assert not any("SQL" in error and "not recorded" in error for error in result.errors)

@@ -307,22 +307,46 @@ function ApprovalCard({ match, comment, setComment, revision, setRevision, busyA
 
 function OutcomeCard({ workflow }) {
   if (workflow.status === "AwaitingApproval") return null;
+
   const success = workflow.status === "Completed" && workflow.approvalStatus === "Approved";
+  const validationErrors = workflow.validation?.errors ?? [];
+  const failedStep = (workflow.steps ?? []).find((step) => step.status === "Failed");
+
   return (
     <section className={`rounded-2xl border p-5 ${success ? "border-emerald-200 bg-emerald-50" : "border-neutral-200 bg-white"}`}>
       <div className="flex items-center gap-2 font-semibold">
         {success ? <CheckCircle2 size={18} className="text-emerald-600" /> : <AlertCircle size={18} className="text-neutral-500" />}
         Workflow outcome
       </div>
+
       <p className="mt-2 text-sm text-neutral-600">
         {success
           ? `Approved by you and submitted. Application ID: ${workflow.createdApplicationId}`
           : workflow.errorSummary || `Workflow status: ${workflow.status}. Approval: ${workflow.approvalStatus}.`}
       </p>
+
+      {!success && failedStep && (
+        <div className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+          <span className="font-semibold">Failed step:</span> {failedStep.agent} — {failedStep.action}
+        </div>
+      )}
+
+      {!success && validationErrors.length > 0 && (
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm font-semibold text-red-800">Safety / validation details</p>
+          <ul className="mt-2 space-y-1.5 text-sm text-red-700">
+            {validationErrors.map((error, index) => (
+              <li key={`${index}-${error}`} className="flex gap-2">
+                <span aria-hidden="true">•</span>
+                <span>{error}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
-
 function HistoryCard({ history, currentId, onSelect }) {
   return (
     <aside className="h-fit rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm xl:sticky xl:top-6">
