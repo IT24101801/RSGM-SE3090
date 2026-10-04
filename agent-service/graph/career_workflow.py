@@ -1,7 +1,8 @@
 import logging
-from typing import TypedDict
+from typing import Callable, TypeVar, TypedDict
 
 from langgraph.graph import END, START, StateGraph
+from pydantic import ValidationError
 
 from agents.career_coach_agent import CareerCoachAgent
 from agents.job_matching_agent import JobMatchingAgent
@@ -20,6 +21,9 @@ from career_schemas import (
 from tools.career_validation import validate_career_result
 
 logger = logging.getLogger(__name__)
+T = TypeVar("T")
+
+
 class CareerState(TypedDict, total=False):
     request: CareerWorkflowRequest
     plan: list[PlanStep]
@@ -30,29 +34,164 @@ class CareerState(TypedDict, total=False):
     steps: list[CareerStep]
 
 
-def _append_step(state: CareerState, agent: str, action: str, status: str = "Completed") -> list[CareerStep]:
-    return [*state.get("steps", []), CareerStep(agent=agent, action=action, status=status)]
+class AgentExecutionError(RuntimeError):
+    """Safe wrapper for provider/model failures. Raw exception details stay in logs."""
+
+    def __init__(
+        self,
+        *,
+        agent: str,
+        action: str,
+        code: str,
+        user_message: str,
+        retryable: bool,
+        cause: Exception,
+    ) -> None:
+        super().__init__(user_message)
+        self.agent = agent
+        self.action = action
+        self.code = code
+        self.user_message = user_message
+        self.retryable = retryable
+        self.__cause__ = cause
+
+
+def _classify_agent_error(agent: str, action: str, exc: Exception) -> AgentExecutionError:
+    """Convert provider/library exceptions into stable, user-safe error categories."""
+    if isinstance(exc, ValidationError):
+        return AgentExecutionError(
+            agent=agent,
+            action=action,
+            code="AGENT_OUTPUT_INVALID",
+            user_message=(
+                f"{agent} returned output that did not match the required structured format."
+            ),
+            retryable=True,
+            cause=exc,
+        )
+
+    class_name = type(exc).__name__.casefold()
+    message = str(exc).casefold()
+
+    if "rate" in class_name and "limit" in class_name or "rate limit" in message:
+        return AgentExecutionError(
+            agent=agent,
+            action=action,
+            code="AI_PROVIDER_RATE_LIMIT",
+            user_message="The AI provider is temporarily busy. Please retry shortly.",
+            retryable=True,
+            cause=exc,
+        )
+
+    if isinstance(exc, TimeoutError) or "timeout" in class_name or "timed out" in message:
+        return AgentExecutionError(
+            agent=agent,
+            action=action,
+            code="AI_PROVIDER_TIMEOUT",
+            user_message="The AI provider took too long to respond. Please retry.",
+            retryable=True,
+            cause=exc,
+        )
+
+    if "authentication" in class_name or "api key" in message or "unauthorized" in message:
+        return AgentExecutionError(
+            agent=agent,
+            action=action,
+            code="AI_PROVIDER_CONFIGURATION",
+            user_message="The AI service is not configured correctly. Contact an administrator.",
+            retryable=False,
+            cause=exc,
+        )
+
+    if (
+        isinstance(exc, ConnectionError)
+        or "connection" in class_name
+        or "connect" in message
+        or "unavailable" in message
+    ):
+        return AgentExecutionError(
+            agent=agent,
+            action=action,
+            code="AI_PROVIDER_UNAVAILABLE",
+            user_message="The AI provider is temporarily unavailable. Please retry later.",
+            retryable=True,
+            cause=exc,
+        )
+
+    if isinstance(exc, RuntimeError) and "groq_api_key" in message:
+        return AgentExecutionError(
+            agent=agent,
+            action=action,
+            code="AI_PROVIDER_CONFIGURATION",
+            user_message="The AI service is not configured correctly. Contact an administrator.",
+            retryable=False,
+            cause=exc,
+        )
+
+    return AgentExecutionError(
+        agent=agent,
+        action=action,
+        code="AGENT_EXECUTION_FAILED",
+        user_message=f"{agent} could not complete its task safely.",
+        retryable=True,
+        cause=exc,
+    )
+
+
+def _run_agent(agent: str, action: str, operation: Callable[[], T]) -> T:
+    try:
+        return operation()
+    except AgentExecutionError:
+        raise
+    except Exception as exc:
+        raise _classify_agent_error(agent, action, exc) from exc
+
+
+def _append_step(
+    state: CareerState,
+    agent: str,
+    action: str,
+    status: str = "Completed",
+) -> list[CareerStep]:
+    return [
+        *state.get("steps", []),
+        CareerStep(agent=agent, action=action, status=status),
+    ]
 
 
 def planner_node(state: CareerState):
+    plan = _run_agent(
+        "PlannerAgent",
+        "CreateStructuredPlan",
+        lambda: PlannerAgent().run(state["request"].objective),
+    )
     return {
-        "plan": PlannerAgent().run(state["request"].objective),
+        "plan": plan,
         "steps": _append_step(state, "PlannerAgent", "CreateStructuredPlan"),
     }
 
 
 def profile_node(state: CareerState):
+    profile = _run_agent(
+        "ProfileAnalysisAgent",
+        "AnalyseCandidateProfile",
+        lambda: ProfileAnalysisAgent().run(state["request"].candidate),
+    )
     return {
-        "profile_analysis": ProfileAnalysisAgent().run(state["request"].candidate),
+        "profile_analysis": profile,
         "steps": _append_step(state, "ProfileAnalysisAgent", "AnalyseCandidateProfile"),
     }
 
 
 def matching_node(state: CareerState):
-    matches = JobMatchingAgent().run(
-        state["request"].candidate,
-        state["request"].jobs,
-        state["profile_analysis"],
+    matches = _run_agent(
+        "JobMatchingAgent",
+        "RankPublishedJobs",
+        lambda: JobMatchingAgent().run(
+            state["request"].candidate,
+            state["request"].jobs,
+            state["profile_analysis"],
+        ),
     )
     return {
         "job_matches": matches,
@@ -63,9 +202,19 @@ def matching_node(state: CareerState):
 def coach_node(state: CareerState):
     matches = state.get("job_matches", [])
     if not matches:
-        return {"steps": _append_step(state, "CareerCoachAgent", "PrepareCareerAdvice", "Skipped")}
+        return {
+            "steps": _append_step(
+                state, "CareerCoachAgent", "PrepareCareerAdvice", "Skipped"
+            )
+        }
+
+    advice = _run_agent(
+        "CareerCoachAgent",
+        "PrepareCareerAdvice",
+        lambda: CareerCoachAgent().run(state["profile_analysis"], matches[0]),
+    )
     return {
-        "career_advice": CareerCoachAgent().run(state["profile_analysis"], matches[0]),
+        "career_advice": advice,
         "steps": _append_step(state, "CareerCoachAgent", "PrepareCareerAdvice"),
     }
 
@@ -80,8 +229,12 @@ def validator_node(state: CareerState):
     )
     return {
         "validation": result,
-        "steps": _append_step(state, "DeterministicValidator", "ValidateAgentOutputs",
-                              "Completed" if result.valid else "Failed"),
+        "steps": _append_step(
+            state,
+            "DeterministicValidator",
+            "ValidateAgentOutputs",
+            "Completed" if result.valid else "Failed",
+        ),
     }
 
 
@@ -104,14 +257,17 @@ def build_graph():
 CAREER_GRAPH = build_graph()
 
 
-def run_career_workflow(
-    request: CareerWorkflowRequest
-) -> CareerWorkflowResponse:
+def _validation_failure_summary(validation: ValidationResult) -> str:
+    if not validation.errors:
+        return "Deterministic validation rejected the agent output."
+
+    first_error = validation.errors[0]
+    return f"Deterministic validation rejected the agent output. {first_error}"[:1000]
+
+
+def run_career_workflow(request: CareerWorkflowRequest) -> CareerWorkflowResponse:
     try:
-        state = CAREER_GRAPH.invoke({
-            "request": request,
-            "steps": []
-        })
+        state = CAREER_GRAPH.invoke({"request": request, "steps": []})
 
         validation = state["validation"]
         matches = state.get("job_matches", [])
@@ -128,10 +284,7 @@ def run_career_workflow(
                 selected_job_id=matches[0].job_id if matches else None,
                 validation=validation,
                 steps=state.get("steps", []),
-                error_summary=(
-                    "Deterministic validation rejected "
-                    "the agent output."
-                ),
+                error_summary=_validation_failure_summary(validation),
             )
 
         if not matches:
@@ -146,10 +299,7 @@ def run_career_workflow(
                 selected_job_id=None,
                 validation=validation,
                 steps=state.get("steps", []),
-                error_summary=(
-                    "No published jobs were available "
-                    "for recommendation."
-                ),
+                error_summary="No eligible published jobs were available for recommendation.",
             )
 
         return CareerWorkflowResponse(
@@ -172,13 +322,15 @@ def run_career_workflow(
             ],
         )
 
-    except Exception as exc:
+    except AgentExecutionError as exc:
         logger.exception(
-            "Career workflow failed for workflow %s: %s",
+            "Career workflow %s failed in %s (%s): %s",
             request.workflow_id,
-            exc,
+            exc.agent,
+            exc.code,
+            exc.__cause__,
         )
-
+        retry_hint = " You can retry this workflow." if exc.retryable else ""
         return CareerWorkflowResponse(
             workflow_id=request.workflow_id,
             status="SafelyFailed",
@@ -190,7 +342,39 @@ def run_career_workflow(
             career_advice=None,
             validation=ValidationResult(
                 valid=False,
-                errors=["Agent workflow execution failed."],
+                errors=[f"{exc.code}: {exc.user_message}"],
+                checks=[],
+            ),
+            steps=[
+                CareerStep(
+                    agent=exc.agent,
+                    action=exc.action,
+                    status="Failed",
+                )
+            ],
+            error_summary=(exc.user_message + retry_hint)[:1000],
+        )
+
+    except Exception as exc:
+        # Last-resort boundary: never expose raw provider/stack-trace details to clients.
+        logger.exception(
+            "Unexpected career workflow failure for workflow %s",
+            request.workflow_id,
+        )
+        return CareerWorkflowResponse(
+            workflow_id=request.workflow_id,
+            status="SafelyFailed",
+            current_step="SafeFailure",
+            plan=[],
+            profile_analysis=None,
+            job_matches=[],
+            selected_job_id=None,
+            career_advice=None,
+            validation=ValidationResult(
+                valid=False,
+                errors=[
+                    "WORKFLOW_INTERNAL_ERROR: The workflow encountered an unexpected internal error."
+                ],
                 checks=[],
             ),
             steps=[
@@ -201,7 +385,7 @@ def run_career_workflow(
                 )
             ],
             error_summary=(
-                "The AI workflow could not finish safely. "
-                "Check the agent-service logs and configuration."
+                "The AI workflow could not finish safely. Please retry. "
+                "If the problem continues, contact an administrator."
             ),
         )
