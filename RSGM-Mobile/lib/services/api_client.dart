@@ -1,6 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../config/api_config.dart';
 
 /// Centralized HTTP API client for authenticated communication with the RSGM backend.
@@ -16,13 +20,12 @@ class ApiClient {
     if (overrideToken != null && overrideToken!.isNotEmpty) {
       return overrideToken;
     }
+
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('rsgm_session_token');
   }
 
   /// Builds a normalized URI using [ApiConfig.baseUrl] and the provided [path].
-  ///
-  /// Prevents double slashes or duplicated '/api' segments.
   Uri buildUri(String path, [Map<String, dynamic>? queryParameters]) {
     final base = ApiConfig.baseUrl.replaceAll(RegExp(r'/+$'), '');
     final cleanPath = path.replaceAll(RegExp(r'^/+'), '');
@@ -34,6 +37,7 @@ class ApiClient {
     }
 
     final sanitizedParams = <String, String>{};
+
     for (final entry in queryParameters.entries) {
       if (entry.value != null) {
         sanitizedParams[entry.key] = entry.value.toString();
@@ -48,21 +52,37 @@ class ApiClient {
     );
   }
 
-  /// Assembles default headers including Content-Type, Accept, and Bearer token if present.
-  Future<Map<String, String>> _buildHeaders([Map<String, String>? extraHeaders]) async {
+  Future<Map<String, String>> _buildHeaders([
+    Map<String, String>? extraHeaders,
+  ]) async {
     final token = await getToken();
+
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
     };
+
     if (extraHeaders != null) {
       headers.addAll(extraHeaders);
     }
+
     return headers;
   }
 
-  /// Performs an HTTP GET request.
+  /// Headers for multipart requests.
+  ///
+  /// Do not set Content-Type manually because [http.MultipartRequest]
+  /// generates the correct multipart boundary.
+  Future<Map<String, String>> _buildMultipartHeaders() async {
+    final token = await getToken();
+
+    return <String, String>{
+      'Accept': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+  }
+
   Future<dynamic> get(
     String path, {
     Map<String, String>? headers,
@@ -78,12 +98,12 @@ class ApiClient {
       rethrow;
     } catch (_) {
       throw const ApiException(
-        message: 'Unable to connect to the RSGM server. Check your connection and ensure the backend is running.',
+        message:
+            'Unable to connect to the RSGM server. Check your connection and ensure the backend is running.',
       );
     }
   }
 
-  /// Performs an HTTP POST request.
   Future<dynamic> post(
     String path,
     dynamic body, {
@@ -99,17 +119,64 @@ class ApiClient {
         headers: requestHeaders,
         body: body != null ? jsonEncode(body) : null,
       );
+
       return _handleResponse(response);
     } on ApiException {
       rethrow;
     } catch (_) {
       throw const ApiException(
-        message: 'Unable to connect to the RSGM server. Check your connection and ensure the backend is running.',
+        message:
+            'Unable to connect to the RSGM server. Check your connection and ensure the backend is running.',
       );
     }
   }
 
-  /// Performs an HTTP PUT request.
+  /// Uploads one in-memory file as multipart/form-data.
+  ///
+  /// This works on Flutter Web, Windows and mobile because it does not depend
+  /// on dart:io file paths.
+  Future<dynamic> postMultipartBytes(
+    String path, {
+    required String fieldName,
+    required String fileName,
+    required Uint8List bytes,
+    required String contentType,
+    Map<String, String>? fields,
+  }) async {
+    final uri = buildUri(path);
+    final requestHeaders = await _buildMultipartHeaders();
+
+    try {
+      final request = http.MultipartRequest('POST', uri)
+        ..headers.addAll(requestHeaders);
+
+      if (fields != null) {
+        request.fields.addAll(fields);
+      }
+
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          fieldName,
+          bytes,
+          filename: fileName,
+          contentType: MediaType.parse(contentType),
+        ),
+      );
+
+      final streamedResponse = await _httpClient.send(request);
+      final response = await http.Response.fromStream(streamedResponse);
+
+      return _handleResponse(response);
+    } on ApiException {
+      rethrow;
+    } catch (_) {
+      throw const ApiException(
+        message:
+            'Unable to upload the file. Check your connection and ensure the backend is running.',
+      );
+    }
+  }
+
   Future<dynamic> put(
     String path,
     dynamic body, {
@@ -125,17 +192,18 @@ class ApiClient {
         headers: requestHeaders,
         body: body != null ? jsonEncode(body) : null,
       );
+
       return _handleResponse(response);
     } on ApiException {
       rethrow;
     } catch (_) {
       throw const ApiException(
-        message: 'Unable to connect to the RSGM server. Check your connection and ensure the backend is running.',
+        message:
+            'Unable to connect to the RSGM server. Check your connection and ensure the backend is running.',
       );
     }
   }
 
-  /// Performs an HTTP PATCH request.
   Future<dynamic> patch(
     String path,
     dynamic body, {
@@ -151,17 +219,18 @@ class ApiClient {
         headers: requestHeaders,
         body: body != null ? jsonEncode(body) : null,
       );
+
       return _handleResponse(response);
     } on ApiException {
       rethrow;
     } catch (_) {
       throw const ApiException(
-        message: 'Unable to connect to the RSGM server. Check your connection and ensure the backend is running.',
+        message:
+            'Unable to connect to the RSGM server. Check your connection and ensure the backend is running.',
       );
     }
   }
 
-  /// Performs an HTTP DELETE request.
   Future<dynamic> delete(
     String path, {
     Map<String, String>? headers,
@@ -177,19 +246,21 @@ class ApiClient {
         headers: requestHeaders,
         body: body != null ? jsonEncode(body) : null,
       );
+
       return _handleResponse(response);
     } on ApiException {
       rethrow;
     } catch (_) {
       throw const ApiException(
-        message: 'Unable to connect to the RSGM server. Check your connection and ensure the backend is running.',
+        message:
+            'Unable to connect to the RSGM server. Check your connection and ensure the backend is running.',
       );
     }
   }
 
-  /// Parses the HTTP response and returns the decoded JSON, or throws [ApiException].
   dynamic _handleResponse(http.Response response) {
     dynamic decoded;
+
     if (response.body.isNotEmpty) {
       try {
         decoded = jsonDecode(response.body);
@@ -205,17 +276,18 @@ class ApiClient {
     throw _createException(response.statusCode, decoded);
   }
 
-  /// Constructs an [ApiException] by extracting structured error messages from backend responses.
   ApiException _createException(int statusCode, dynamic decoded) {
     String message = 'Request failed with status $statusCode.';
     List<String> errorList = [];
 
     if (decoded is Map<String, dynamic>) {
-      if (decoded['message'] is String && (decoded['message'] as String).isNotEmpty) {
+      if (decoded['message'] is String &&
+          (decoded['message'] as String).isNotEmpty) {
         message = decoded['message'] as String;
       }
 
       final errors = decoded['errors'];
+
       if (errors is List) {
         errorList = errors.map((e) => e.toString()).toList();
       } else if (errors is Map) {
@@ -233,14 +305,13 @@ class ApiClient {
       }
     } else if (decoded is String && decoded.isNotEmpty) {
       message = decoded;
-    } else {
-      if (statusCode == 401) {
-        message = 'Session expired or unauthorized. Please sign in again.';
-      } else if (statusCode == 403) {
-        message = 'Access denied. You do not have permission to perform this action.';
-      } else if (statusCode == 404) {
-        message = 'The requested resource was not found.';
-      }
+    } else if (statusCode == 401) {
+      message = 'Session expired or unauthorized. Please sign in again.';
+    } else if (statusCode == 403) {
+      message =
+          'Access denied. You do not have permission to perform this action.';
+    } else if (statusCode == 404) {
+      message = 'The requested resource was not found.';
     }
 
     return ApiException(
@@ -251,7 +322,6 @@ class ApiClient {
   }
 }
 
-/// Standard exception thrown by [ApiClient] for network, server, and authorization errors.
 class ApiException implements Exception {
   const ApiException({
     required this.message,
