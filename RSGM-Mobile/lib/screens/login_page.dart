@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/rsgm_widgets.dart';
 import 'recruiter/recruiter_main_screen.dart';
+import 'jobseeker/jobseeker_main_screen.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -49,6 +50,11 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const RecruiterMainScreen()),
+        );
+      } else if (rolesList.contains('JobSeeker')) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const JobSeekerMainScreen()),
         );
       }
     } on AuthException catch (e) {
