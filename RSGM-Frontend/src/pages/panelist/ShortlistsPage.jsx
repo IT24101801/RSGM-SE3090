@@ -340,21 +340,7 @@ export default function ShortlistsPage() {
                       View candidate
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelection({
-                          jobId: job.jobPostingId,
-                          candidate,
-                        });
-
-                        setSlots([]);
-                        setStart("");
-                      }}
-                      className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white"
-                    >
-                      Propose interview
-                    </button>
+                    
 
                     <button
                       type="button"
