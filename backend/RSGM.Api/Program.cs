@@ -25,17 +25,13 @@ builder.Services.AddControllers();
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(
-        "ReactFrontend",
-        policy =>
-        {
-            policy
-                .WithOrigins(
-                    "http://localhost:5173"
-                )
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        });
+    options.AddPolicy("DevelopmentCors", policy =>
+    {
+        policy
+            .AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
 });
 
 
@@ -360,7 +356,7 @@ app.UseHttpsRedirection();
 // IMPORTANT:
 // Authentication must come BEFORE Authorization.
 
-app.UseCors("ReactFrontend");
+app.UseCors("DevelopmentCors");
 
 app.UseAuthentication();
 
