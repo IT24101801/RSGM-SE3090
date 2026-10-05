@@ -136,8 +136,8 @@ function AuthShell({
                   text-5xl
                   xl:text-6xl
                   font-semibold
-                  tracking-[-0.05em]
-                  leading-[1]
+                  tracking-tighter
+                  leading-none
                 "
               >
                 Hire smarter.
