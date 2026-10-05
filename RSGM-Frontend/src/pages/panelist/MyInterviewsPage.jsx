@@ -21,6 +21,11 @@ export default function MyInterviewsPage() {
   const [selected, setSelected] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [recommendFor, setRecommendFor] = useState(null);
+
+  const [rescheduleFor, setRescheduleFor] = useState(null);
+  const [rescheduleSlots, setRescheduleSlots] = useState([]);
+  const [selectedRescheduleSlot, setSelectedRescheduleSlot] = useState("");
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [choice, setChoice] = useState("yes");
   const [rationale, setRationale] = useState("");
   const [busy, setBusy] = useState(false);
@@ -62,16 +67,65 @@ export default function MyInterviewsPage() {
     catch (e) { setError(e.message); }
     finally { setBusy(false); }
   }
-  async function change(i) {
+  async function openReschedule(interview) {
+    setError("");
+    setRescheduleFor(interview);
+    setRescheduleSlots([]);
+    setSelectedRescheduleSlot("");
+    setRescheduleLoading(true);
+
     try {
-      const slots = await getAvailableSlots(i.jobPostingId, i.hrManagerId);
-      const choices = slots.filter((slot) => slot !== i.scheduledAt);
-      if (!choices.length) { setError("No other free office-hour slots are available. Check each participant's busy schedule."); return; }
-      const details = choices.map((slot, index) => `${index + 1}. ${new Date(slot).toLocaleString()}`).join("\n");
-      const choice = Number(window.prompt(`Select a new shared slot by number:\n${details}`));
-      if (choice >= 1 && choice <= choices.length) await act(() => changeInterviewTime(i.id, choices[choice - 1]));
-    } catch (e) { setError(e.message); }
+      const slots = await getAvailableSlots(
+        interview.jobPostingId,
+        interview.hrManagerId
+      );
+
+      const currentTime = new Date(interview.scheduledAt).getTime();
+
+      const availableChoices = (Array.isArray(slots) ? slots : []).filter(
+        (slot) => new Date(slot).getTime() !== currentTime
+      );
+
+      setRescheduleSlots(availableChoices);
+
+      if (availableChoices.length > 0) {
+        setSelectedRescheduleSlot(availableChoices[0]);
+      }
+    } catch (e) {
+      setError(e.message);
+      setRescheduleFor(null);
+    } finally {
+      setRescheduleLoading(false);
+    }
   }
+
+  async function submitReschedule(e) {
+    e.preventDefault();
+
+    if (!rescheduleFor || !selectedRescheduleSlot) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+
+    try {
+      await changeInterviewTime(
+        rescheduleFor.id,
+        selectedRescheduleSlot
+      );
+
+      await refresh();
+
+      setRescheduleFor(null);
+      setRescheduleSlots([]);
+      setSelectedRescheduleSlot("");
+    } catch (e) {
+        setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+    }
   async function submitRecommendation(e) {
     e.preventDefault();
     setBusy(true); setError("");
@@ -101,7 +155,7 @@ export default function MyInterviewsPage() {
         {i.status !== "Cancelled" && <div className="mt-4 flex flex-wrap gap-2">
           <button type="button" onClick={() => setViewing(i)} className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 hover:bg-amber-100">View candidate & CV</button>
           {i.status === "Scheduled" && new Date(i.scheduledAt) <= new Date() && !decisions.some((r) => r.interviewId === i.id) && <button type="button" onClick={() => setSelected(i)} className="rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800">{i.feedback ? "View / edit feedback" : "Give feedback"}</button>}
-          {new Date(i.scheduledAt) > new Date() && i.hrManagerId && <button type="button" disabled={busy} onClick={() => change(i)} className="rounded-xl border border-amber-200 px-4 py-2.5 text-sm font-semibold text-amber-700">Propose new time</button>}
+          {new Date(i.scheduledAt) > new Date() && i.hrManagerId && <button type="button" disabled={busy} onClick={() => openReschedule(i)} className="rounded-xl border border-amber-200 px-4 py-2.5 text-sm font-semibold text-amber-700">Propose new time</button>}
           {new Date(i.scheduledAt) > new Date() && !i.feedback && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this interview?")) act(() => cancelPanelistInterview(i.id)); }} className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700">Cancel</button>}
           {i.status === "Scheduled" && new Date(i.scheduledAt) <= new Date() && i.feedback && !decisions.some((r) => r.interviewId === i.id) && <button type="button" disabled={busy} onClick={() => setRecommendFor(i)} className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white">Send recommendation to HR</button>}
         </div>}
@@ -110,6 +164,146 @@ export default function MyInterviewsPage() {
     {recommendFor && <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 p-4"><form onSubmit={submitRecommendation} className="w-full max-w-lg space-y-4 rounded-3xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><h2 className="text-xl font-semibold">Recommendation to HR</h2><p className="mt-1 text-sm text-neutral-500">{recommendFor.candidate} · {recommendFor.job}</p></div><button type="button" aria-label="Close" onClick={() => setRecommendFor(null)}>✕</button></div><label className="block text-sm font-medium">Decision<select className="mt-2 w-full rounded-xl border border-neutral-200 p-3" value={choice} onChange={(e) => setChoice(e.target.value)}><option value="yes">Recommend</option><option value="no">Do not recommend</option></select></label><label className="block text-sm font-medium">Rationale<textarea required maxLength={2000} rows={5} value={rationale} onChange={(e) => setRationale(e.target.value)} className="mt-2 w-full rounded-xl border border-neutral-200 p-3" /></label><button disabled={busy || !rationale.trim()} className="w-full rounded-xl bg-amber-600 py-3 text-sm font-semibold text-white disabled:opacity-50">Submit to HR</button></form></div>}
     {selected && <FeedbackDialog key={selected.id} interview={selected} busy={busy} onClose={() => setSelected(null)} onSubmit={(feedback) => submit(selected.id, feedback)} />}
     {viewing && <CandidateDialog key={viewing.id} interview={viewing} onClose={() => setViewing(null)} onFeedback={() => { setSelected(viewing); setViewing(null); }} />}
+    {rescheduleFor && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 p-4 backdrop-blur-sm"
+          onMouseDown={(e) => {
+          if (
+            e.target === e.currentTarget &&
+            !busy &&
+            !rescheduleLoading
+          ) {
+            setRescheduleFor(null);
+          }
+        }}
+      >
+        <form
+          onSubmit={submitReschedule}
+          className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl sm:p-8"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold">
+                Reschedule interview
+              </h2>
+
+              <p className="mt-1 text-sm text-neutral-500">
+                {rescheduleFor.candidate} · {rescheduleFor.job}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              aria-label="Close"
+              disabled={busy || rescheduleLoading}
+              onClick={() => setRescheduleFor(null)}
+              className="text-neutral-400 transition hover:text-neutral-700 disabled:opacity-50"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="mt-6">
+            <p className="text-sm font-medium text-neutral-800">
+              Current interview time
+            </p>
+
+            <p className="mt-2 rounded-xl bg-neutral-50 p-3 text-sm text-neutral-600">
+              {new Date(
+                rescheduleFor.scheduledAt
+              ).toLocaleString()}
+            </p>
+          </div>
+
+          <div className="mt-5">
+            <p className="text-sm font-medium text-neutral-800">
+              Available shared slots
+            </p>
+
+            <p className="mt-1 text-xs text-neutral-500">
+              These times are available for the recruiter, Hiring Panelist,
+              and HR Manager.
+            </p>
+
+            {rescheduleLoading && (
+              <div className="mt-4 flex items-center gap-2 text-sm text-neutral-500">
+                <Loader2
+                  size={16}
+                  className="animate-spin"
+                />
+                Checking shared availability...
+              </div>
+            )}
+
+            {!rescheduleLoading &&
+              rescheduleSlots.length === 0 && (
+                <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-700">
+                  No other shared office-hour slots are currently
+                  available.
+                </p>
+              )}
+
+            {!rescheduleLoading &&
+              rescheduleSlots.length > 0 && (
+                <div className="mt-4 max-h-64 space-y-2 overflow-y-auto pr-1">
+                  {rescheduleSlots.map((slot) => (
+                    <label
+                      key={slot}
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${
+                        selectedRescheduleSlot === slot
+                          ? "border-amber-400 bg-amber-50"
+                          : "border-neutral-200 hover:bg-neutral-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="rescheduleSlot"
+                        value={slot}
+                        checked={
+                          selectedRescheduleSlot === slot
+                        }
+                        onChange={(e) =>
+                          setSelectedRescheduleSlot(
+                            e.target.value
+                          )
+                        }
+                        className="accent-amber-600"
+                      />
+
+                      <span className="text-sm text-neutral-700">
+                        {new Date(slot).toLocaleString()}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+          </div>
+
+          <div className="mt-6 flex gap-3">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setRescheduleFor(null)}
+              className="flex-1 rounded-xl border border-neutral-200 px-4 py-3 text-sm font-semibold text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={
+                busy ||
+                rescheduleLoading ||
+                !selectedRescheduleSlot
+              }
+              className="flex-1 rounded-xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:opacity-50"
+            >
+              {busy ? "Rescheduling..." : "Confirm new time"}
+            </button>
+          </div>
+        </form>
+      </div>
+    )}
   </div>;
 }
 
