@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarClock, Trash2 } from "lucide-react";
 import {
   addBusyTime,
@@ -8,14 +8,44 @@ import {
 
 const emptyForm = {
   title: "",
-  startsAt: "",
-  endsAt: "",
+  date: "",
+  startTime: "08:00",
+  endTime: "09:00",
   description: "",
 };
 
+const pad = (value) => String(value).padStart(2, "0");
+
+function localDateValue(date = new Date()) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function timeOptions(fromMinutes, toMinutes) {
+  const values = [];
+  for (let minutes = fromMinutes; minutes <= toMinutes; minutes += 30) {
+    values.push(`${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`);
+  }
+  return values;
+}
+
+function displayTime(value) {
+  const [hour, minute] = value.split(":").map(Number);
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${pad(minute)} ${suffix}`;
+}
+
+function minutesFromTime(value) {
+  const [hour, minute] = value.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
 export default function AvailabilityPage() {
   const [events, setEvents] = useState([]);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => ({
+    ...emptyForm,
+    date: localDateValue(),
+  }));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -42,6 +72,10 @@ export default function AvailabilityPage() {
         ? "bg-amber-600"
         : "bg-blue-600";
 
+  const today = localDateValue();
+  const startOptions = useMemo(() => timeOptions(8 * 60, 16 * 60 + 30), []);
+  const endOptions = useMemo(() => timeOptions(8 * 60 + 30, 17 * 60), []);
+
   const refresh = useCallback(
     () =>
       getBusyTimes()
@@ -60,41 +94,35 @@ export default function AvailabilityPage() {
     setError("");
 
     try {
-      const start = new Date(form.startsAt);
-      const end = new Date(form.endsAt);
+      const start = new Date(`${form.date}T${form.startTime}:00`);
+      const end = new Date(`${form.date}T${form.endTime}:00`);
+      const now = new Date();
+      const weekday = start.getDay() >= 1 && start.getDay() <= 5;
 
-      const weekday =
-        start.getDay() >= 1 &&
-        start.getDay() <= 5;
-
-      const minutes = (date) =>
-        date.getHours() * 60 + date.getMinutes();
+      if (start <= now) {
+        throw new Error("Start date and time must be in the future.");
+      }
 
       if (
         !weekday ||
         start.toDateString() !== end.toDateString() ||
-        minutes(start) < 540 ||
-        minutes(end) > 1020 ||
+        minutesFromTime(form.startTime) < 480 ||
+        minutesFromTime(form.endTime) > 1020 ||
         end <= start
       ) {
         throw new Error(
-          "Busy times must be on one weekday between 9:00 AM and 5:00 PM.",
+          "Busy times must be on one weekday between 8:00 AM and 5:00 PM.",
         );
       }
 
       await addBusyTime({
         title: form.title.trim(),
-        description:
-          form.description.trim() || null,
-        startsAt: new Date(
-          form.startsAt,
-        ).toISOString(),
-        endsAt: new Date(
-          form.endsAt,
-        ).toISOString(),
+        description: form.description.trim() || null,
+        startsAt: start.toISOString(),
+        endsAt: end.toISOString(),
       });
 
-      setForm(emptyForm);
+      setForm({ ...emptyForm, date: localDateValue() });
       await refresh();
     } catch (err) {
       setError(err.message);
@@ -123,31 +151,32 @@ export default function AvailabilityPage() {
       [key]: e.target.value,
     }));
 
+  const isPastTimeToday = (time) => {
+    if (form.date !== today) return false;
+    const now = new Date();
+    const optionMinutes = minutesFromTime(time);
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    return optionMinutes <= nowMinutes;
+  };
+
   return (
     <div className="space-y-6">
       <div>
-        <p
-          className={`text-xs font-semibold uppercase tracking-wider ${accent}`}
-        >
+        <p className={`text-xs font-semibold uppercase tracking-wider ${accent}`}>
           Interview planning
         </p>
 
-        <h1 className="mt-3 text-3xl font-semibold">
-          My schedule
-        </h1>
+        <h1 className="mt-3 text-3xl font-semibold">My schedule</h1>
 
         <p className="mt-2 text-sm text-neutral-500">
           {isPanelist
             ? "View your unavailable periods here. Manage your availability from the Hiring Panelist mobile app."
-            : "Add meetings and other unavailable periods during weekday interview hours, 9:00 AM to 5:00 PM. All remaining times are treated as available automatically."}
+            : "Add meetings and other unavailable periods during weekday interview hours, 8:00 AM to 5:00 PM. Past dates are not allowed, and all remaining times are treated as available automatically."}
         </p>
       </div>
 
       {error && (
-        <p
-          role="alert"
-          className="rounded-xl bg-red-50 p-3 text-sm text-red-700"
-        >
+        <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">
           {error}
         </p>
       )}
@@ -169,35 +198,60 @@ export default function AvailabilityPage() {
             />
           </label>
 
-          <label className="text-sm font-medium">
-            Start
+          <label className="text-sm font-medium sm:col-span-2">
+            Date
             <input
-              type="datetime-local"
+              type="date"
               required
-              value={form.startsAt}
-              onChange={update("startsAt")}
+              min={today}
+              value={form.date}
+              onChange={update("date")}
               className="mt-2 block w-full rounded-xl border border-neutral-200 px-3 py-2.5"
             />
           </label>
 
           <label className="text-sm font-medium">
-            End
-            <input
-              type="datetime-local"
+            Start time
+            <select
               required
-              min={form.startsAt}
-              value={form.endsAt}
-              onChange={update("endsAt")}
+              value={form.startTime}
+              onChange={update("startTime")}
               className="mt-2 block w-full rounded-xl border border-neutral-200 px-3 py-2.5"
-            />
+            >
+              {startOptions.map((time) => (
+                <option key={time} value={time} disabled={isPastTimeToday(time)}>
+                  {displayTime(time)}
+                </option>
+              ))}
+            </select>
           </label>
+
+          <label className="text-sm font-medium">
+            End time
+            <select
+              required
+              value={form.endTime}
+              onChange={update("endTime")}
+              className="mt-2 block w-full rounded-xl border border-neutral-200 px-3 py-2.5"
+            >
+              {endOptions.map((time) => (
+                <option
+                  key={time}
+                  value={time}
+                  disabled={minutesFromTime(time) <= minutesFromTime(form.startTime)}
+                >
+                  {displayTime(time)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <p className="text-xs text-neutral-500 sm:col-span-2">
+            Available scheduling window: Monday-Friday, 8:00 AM-5:00 PM. Times are shown in 30-minute steps.
+          </p>
 
           <label className="text-sm font-medium sm:col-span-2">
-            Description{" "}
-            <span className="font-normal text-neutral-400">
-              (optional)
-            </span>
-
+            Description <span className="font-normal text-neutral-400">(optional)</span>
             <textarea
               maxLength={500}
               rows={2}
@@ -217,9 +271,7 @@ export default function AvailabilityPage() {
       )}
 
       <div className="space-y-2">
-        <h2 className="font-semibold">
-          Upcoming busy times
-        </h2>
+        <h2 className="font-semibold">Upcoming busy times</h2>
 
         {events.length === 0 && (
           <p className="rounded-2xl bg-white p-5 text-sm text-neutral-500">
@@ -234,30 +286,14 @@ export default function AvailabilityPage() {
             key={event.id}
             className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm"
           >
-            <CalendarClock
-              className={accent}
-              size={19}
-            />
-
+            <CalendarClock className={accent} size={19} />
             <div className="flex-1">
-              <p className="text-sm font-semibold">
-                {event.title}
-              </p>
-
+              <p className="text-sm font-semibold">{event.title}</p>
               <p className="mt-1 text-sm text-neutral-600">
-                {new Date(
-                  event.startsAt,
-                ).toLocaleString()}{" "}
-                -{" "}
-                {new Date(
-                  event.endsAt,
-                ).toLocaleString()}
+                {new Date(event.startsAt).toLocaleString()} - {new Date(event.endsAt).toLocaleString()}
               </p>
-
               {event.description && (
-                <p className="mt-1 text-xs text-neutral-500">
-                  {event.description}
-                </p>
+                <p className="mt-1 text-xs text-neutral-500">{event.description}</p>
               )}
             </div>
 
@@ -266,9 +302,7 @@ export default function AvailabilityPage() {
                 type="button"
                 aria-label="Delete busy time"
                 disabled={busy}
-                onClick={() =>
-                  remove(event.id)
-                }
+                onClick={() => remove(event.id)}
                 className="rounded-lg p-2 text-red-600 hover:bg-red-50"
               >
                 <Trash2 size={17} />
