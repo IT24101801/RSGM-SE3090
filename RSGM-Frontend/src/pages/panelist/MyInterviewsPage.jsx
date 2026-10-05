@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertCircle, CalendarClock, CheckCircle2, Download, Loader2, Sparkles, Star } from "lucide-react";
+import { AlertCircle, CalendarClock, CheckCircle2, Download, Loader2, Search, Sparkles, Star } from "lucide-react";
 import {
   downloadPanelistCandidateCv, getPanelistCandidate, getPanelistInterviews,
   saveInterviewFeedback,
@@ -29,6 +29,8 @@ export default function MyInterviewsPage() {
   const [choice, setChoice] = useState("yes");
   const [rationale, setRationale] = useState("");
   const [busy, setBusy] = useState(false);
+  const [interviewSearch, setInterviewSearch] = useState("");
+  const [interviewFilter, setInterviewFilter] = useState("all");
   const refresh = useCallback(async () => { const [sessions, recommendations] = await Promise.all([getPanelistInterviews(), getPanelistRecommendations()]); setInterviews(sessions); setDecisions(recommendations); }, []);
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +55,65 @@ export default function MyInterviewsPage() {
     loadInitialInterviews();
     return () => { cancelled = true; };
   }, []);
+
+  const filteredInterviews = useMemo(() => {
+    const search = interviewSearch.trim().toLowerCase();
+    const now = new Date();
+
+    return interviews.filter((interview) => {
+      const searchableValues = [
+        interview.candidate,
+        interview.job,
+        interview.type,
+        interview.status,
+        interview.candidateEmail,
+      ];
+
+      const matchesSearch =
+        !search ||
+        searchableValues.some((value) =>
+          String(value ?? "")
+            .toLowerCase()
+            .includes(search)
+        );
+
+      if (!matchesSearch) {
+        return false;
+      }
+
+      const scheduledAt = interview.scheduledAt
+        ? new Date(interview.scheduledAt)
+        : null;
+
+      const isCancelled =
+        interview.status === "Cancelled";
+
+      switch (interviewFilter) {
+        case "upcoming":
+          return (
+            !isCancelled &&
+            scheduledAt &&
+            scheduledAt > now
+          );
+
+        case "past":
+          return (
+            !isCancelled &&
+            scheduledAt &&
+            scheduledAt <= now
+          );
+
+        case "cancelled":
+          return isCancelled;
+
+        case "feedback":
+          return Boolean(interview.feedback);
+
+        default:
+          return true;
+      }
+    });
+  }, [interviews, interviewSearch, interviewFilter]);
 
   async function submit(id, feedback) {
     setBusy(true); setError("");
@@ -139,11 +200,85 @@ export default function MyInterviewsPage() {
     <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">My interviews</h1>
     <p className="mt-2 text-neutral-500">Propose interview times, review candidate profiles and CVs, then forward recommendations to HR.</p>
     <Link to="/panelist/shortlists" className="mt-3 inline-block text-sm font-semibold text-amber-700">View assigned shortlists →</Link>
+    <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_220px]">
+      <label className="relative block">
+        <span className="sr-only">
+          Search interviews
+       </span>
+
+        <Search
+          size={17}
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"
+        />
+
+        <input
+          type="search"
+          value={interviewSearch}
+          onChange={(e) =>
+            setInterviewSearch(e.target.value)
+          }
+          placeholder="Search candidate or job..."
+          className="w-full rounded-xl border border-neutral-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+        />
+      </label>
+
+      <label>
+        <span className="sr-only">
+          Filter interviews
+        </span>
+
+        <select
+          value={interviewFilter}
+          onChange={(e) =>
+            setInterviewFilter(e.target.value)
+          }
+          className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-700 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+        >
+          <option value="all">
+            All interviews
+          </option>
+
+          <option value="upcoming">
+            Upcoming
+          </option>
+
+          <option value="past">
+            Past
+          </option>
+
+          <option value="cancelled">
+            Cancelled
+          </option>
+
+          <option value="feedback">
+            Feedback submitted
+          </option>
+        </select>
+      </label>
+    </div>
     {error && <p role="alert" className="mt-6 flex gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700"><AlertCircle size={16} />{error}</p>}
     <div className="mt-8 space-y-3">
       {loading && <p className="flex items-center gap-2 text-sm text-neutral-500"><Loader2 size={16} className="animate-spin" />Loading interviews…</p>}
-      {!loading && !interviews.length && <div className={card}>No interviews assigned yet.</div>}
-      {interviews.map((i) => <div key={i.id} className={card}>
+      {!loading && interviews.length === 0 && (
+        <div className={card}>
+          No interviews assigned yet.
+        </div>
+      )}
+
+      {!loading &&
+        interviews.length > 0 &&
+        filteredInterviews.length === 0 && (
+          <div className={card}>
+            <p className="font-medium text-neutral-700">
+              No interviews found
+            </p>
+
+            <p className="mt-1 text-sm text-neutral-500">
+              Try changing your search or filter.
+            </p>
+          </div>
+        )}
+      {filteredInterviews.map((i) => <div key={i.id} className={card}>
         <div className="flex flex-wrap items-center gap-4">
           <div className="rounded-xl bg-amber-100 p-3 text-amber-600"><CalendarClock size={20} /></div>
           <div className="min-w-0 flex-1"><h2 className="font-semibold text-neutral-900">{i.candidate}</h2><p className="mt-1 text-sm text-neutral-500">{i.job} · {i.type}</p>
