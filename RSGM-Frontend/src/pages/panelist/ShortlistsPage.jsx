@@ -6,7 +6,6 @@ import {
   getAvailableSlots,
   getHrManagers,
   getPanelistShortlists,
-  getShortlistedCandidate,
   proposeInterview,
 } from "../../services/panelistWorkflowService";
 
@@ -185,16 +184,39 @@ export default function ShortlistsPage() {
     }
   }
 
-  async function openCandidate(candidate) {
+  async function openCandidate(candidate, job) {
     setPreviewLoading(true);
     setPreviewError("");
     setCandidatePreview(null);
 
     try {
-      const details = await getShortlistedCandidate(candidate.id);
-      setCandidatePreview(details);
-    } catch (err) {
-      setPreviewError(err.message);
+      setCandidatePreview({
+        id: candidate.id,
+        fullName: candidate.candidate,
+        email: candidate.email,
+        jobTitle: job.jobTitle,
+        headline: "Shortlisted candidate",
+
+        phoneNumber: null,
+        location: null,
+        bio: null,
+
+        linkedInUrl: null,
+        gitHubUrl: null,
+        portfolioUrl: null,
+
+        skills: [],
+        education: [],
+        workExperience: [],
+
+        status: candidate.status,
+        shortlistRank: candidate.shortlistRank,
+
+        // Keep CV download available. If the candidate has no CV,
+        // the existing download request will show its normal error.
+        hasCv: true,
+        cvFileName: `${candidate.candidate || "candidate"}-cv.pdf`,
+      });
     } finally {
       setPreviewLoading(false);
     }
@@ -407,26 +429,10 @@ export default function ShortlistsPage() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => openCandidate(candidate)}
+                      onClick={() => openCandidate(candidate, job)}
                       className="rounded-xl border border-amber-600 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50"
                     >
                       View candidate
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelection({
-                          jobId: job.jobPostingId,
-                          candidate,
-                        });
-
-                        setSlots([]);
-                        setStart("");
-                      }}
-                      className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white"
-                    >
-                      Propose interview
                     </button>
                   </div>
                 )}
