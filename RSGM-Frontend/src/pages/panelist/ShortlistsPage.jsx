@@ -151,9 +151,9 @@ export default function ShortlistsPage() {
         className="mt-3 inline-block text-sm font-semibold text-amber-700"
         to="/panelist/schedule"
       >
-        Manage your busy schedule →
+        View your schedule →
       </Link>
-
+      
       {error && (
         <p
           role="alert"
