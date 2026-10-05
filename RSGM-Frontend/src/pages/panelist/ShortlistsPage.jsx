@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Search,AlertCircle, Loader2, RefreshCw, } from "lucide-react";
 import {
   downloadShortlistedCandidateCv,
   getAvailableSlots,
@@ -21,6 +21,7 @@ export default function ShortlistsPage() {
   const [location, setLocation] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [shortlistSearch, setShortlistSearch] = useState("");
   const [shortlistStatus, setShortlistStatus] = useState("all");
 
@@ -29,17 +30,49 @@ export default function ShortlistsPage() {
   const [previewError, setPreviewError] = useState("");
   const [cvDownloading, setCvDownloading] = useState(false);
 
-  const refresh = useCallback(
-    () =>
-      getPanelistShortlists()
-        .then(setJobs)
-        .catch((e) => setError(e.message)),
-    []
-  );
+  const refresh = useCallback(async () => {
+    const data = await getPanelistShortlists();
+
+    setJobs(
+      Array.isArray(data)
+        ? data
+        : []
+    );
+  }, []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    let cancelled = false;
+
+    async function loadInitialShortlists() {
+      try {
+        const data = await getPanelistShortlists();
+
+        if (!cancelled) {
+          setJobs(
+            Array.isArray(data)
+              ? data
+              : []
+          );  
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(
+            e.message || "Unable to load assigned shortlists."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+  loadInitialShortlists();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
 
   useEffect(() => {
     if (!selection) return;
@@ -130,6 +163,27 @@ export default function ShortlistsPage() {
       })
       .filter((job) => job.candidates.length > 0);
   }, [jobs, shortlistSearch, shortlistStatus]);
+
+  async function retryShortlists() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await getPanelistShortlists();
+
+      setJobs(
+        Array.isArray(data)
+          ? data
+          : []
+      );
+    } catch (e) {
+      setError(
+        e.message || "Unable to load assigned shortlists."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function openCandidate(candidate) {
     setPreviewLoading(true);
@@ -268,22 +322,43 @@ export default function ShortlistsPage() {
       </div>
 
       {error && (
-        <p
+        <div
           role="alert"
-          className="mt-5 rounded-xl bg-red-50 p-3 text-sm text-red-700"
+          className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-red-50 p-4 text-sm text-red-700"
         >
-          {error}
-        </p>
+          <div className="flex items-center gap-2">
+            <AlertCircle
+              size={17}
+              className="shrink-0"
+            />
+
+            <span>{error}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={retryShortlists}
+            disabled={loading || busy}
+            className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+          >
+            <RefreshCw
+              size={14}
+              className={loading ? "animate-spin" : ""}
+            />
+
+            {loading ? "Retrying..." : "Retry"}
+          </button>
+        </div>
       )}
 
       <div className="mt-7 space-y-5">
-        {jobs.length === 0 && (
+        {!loading && jobs.length === 0 && (
           <p className="rounded-2xl bg-white p-5 text-neutral-500">
             No shortlists assigned yet.
           </p>
         )}
 
-        {jobs.length > 0 && filteredJobs.length === 0 && (
+        {!loading && jobs.length > 0 && filteredJobs.length === 0 && (
           <div className="rounded-2xl border border-neutral-200 bg-white p-5">
             <p className="font-medium text-neutral-700">
               No shortlisted candidates found
@@ -295,7 +370,7 @@ export default function ShortlistsPage() {
           </div>
         )}
 
-        {filteredJobs.map((job) => (
+        {!loading && filteredJobs.map((job) => (
           <section
             key={job.jobPostingId}
             className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"
@@ -360,6 +435,17 @@ export default function ShortlistsPage() {
           </section>
         ))}
       </div>
+
+      {loading && (
+        <div className="flex items-center gap-2 rounded-2xl bg-white p-5 text-sm text-neutral-500">
+          <Loader2
+            size={17}
+            className="animate-spin"
+          />
+
+          Loading assigned shortlists...
+        </div>
+      )}
 
       {previewLoading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 p-4">
