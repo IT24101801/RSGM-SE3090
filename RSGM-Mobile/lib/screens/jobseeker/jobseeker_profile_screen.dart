@@ -85,57 +85,87 @@ class _JobSeekerProfileScreenState extends State<JobSeekerProfileScreen> {
 
     final save = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Edit profile'),
-        content: SizedBox(
-          width: 500,
-          child: SingleChildScrollView(
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextField(
-                  controller: name,
-                  decoration: const InputDecoration(labelText: 'Full name'),
+                const Text(
+                  'Edit profile',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
                 ),
-                TextField(
-                  controller: headline,
-                  decoration: const InputDecoration(labelText: 'Headline'),
+                const SizedBox(height: 18),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: name,
+                          decoration: const InputDecoration(labelText: 'Full name'),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: headline,
+                          decoration: const InputDecoration(labelText: 'Headline'),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: location,
+                          decoration: const InputDecoration(labelText: 'Location'),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: bio,
+                          minLines: 3,
+                          maxLines: 5,
+                          decoration: const InputDecoration(labelText: 'Bio'),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: linkedIn,
+                          keyboardType: TextInputType.url,
+                          decoration: const InputDecoration(labelText: 'LinkedIn URL'),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: gitHub,
+                          keyboardType: TextInputType.url,
+                          decoration: const InputDecoration(labelText: 'GitHub URL'),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: portfolio,
+                          keyboardType: TextInputType.url,
+                          decoration: const InputDecoration(labelText: 'Portfolio URL'),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                TextField(
-                  controller: location,
-                  decoration: const InputDecoration(labelText: 'Location'),
-                ),
-                TextField(
-                  controller: bio,
-                  maxLines: 3,
-                  decoration: const InputDecoration(labelText: 'Bio'),
-                ),
-                TextField(
-                  controller: linkedIn,
-                  decoration: const InputDecoration(labelText: 'LinkedIn URL'),
-                ),
-                TextField(
-                  controller: gitHub,
-                  decoration: const InputDecoration(labelText: 'GitHub URL'),
-                ),
-                TextField(
-                  controller: portfolio,
-                  decoration: const InputDecoration(labelText: 'Portfolio URL'),
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      child: const Text('Save'),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
 
