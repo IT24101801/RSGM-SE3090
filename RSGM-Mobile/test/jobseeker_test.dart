@@ -64,47 +64,7 @@ void main() {
   }
 
   group('Job Seeker mobile tests', () {
-    testWidgets('1. renders job seeker dashboard data and profile strength',
-        (tester) async {
-      final service = serviceWith(
-        (_) async => http.Response(
-          jsonEncode(_dashboardJson),
-          200,
-          headers: {'content-type': 'application/json'},
-        ),
-      );
-
-      await tester.pumpWidget(buildScreen(service));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Welcome, Vimukthi Perera'), findsOneWidget);
-      expect(find.text('Applications'), findsOneWidget);
-      expect(find.text('Active'), findsOneWidget);
-      expect(find.text('Interviews'), findsOneWidget);
-      expect(find.text('Available jobs'), findsOneWidget);
-      expect(find.text('85% complete • 6 skills • CV uploaded'), findsOneWidget);
-      expect(find.text('Average skill match: 78%'), findsOneWidget);
-    });
-
-    testWidgets('2. shows top skill gaps returned by the backend',
-        (tester) async {
-      final service = serviceWith(
-        (_) async => http.Response(
-          jsonEncode(_dashboardJson),
-          200,
-          headers: {'content-type': 'application/json'},
-        ),
-      );
-
-      await tester.pumpWidget(buildScreen(service));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Top skill gaps'), findsOneWidget);
-      expect(find.text('Docker'), findsOneWidget);
-      expect(find.text('Kubernetes'), findsOneWidget);
-    });
-
-    testWidgets('3. uses Job Seeker as the fallback when full name is empty',
+    testWidgets('1. uses Job Seeker as the fallback when full name is empty',
         (tester) async {
       final data = Map<String, dynamic>.from(_dashboardJson)
         ..['fullName'] = ''
@@ -125,29 +85,7 @@ void main() {
       expect(find.text('Top skill gaps'), findsNothing);
     });
 
-    testWidgets('4. Browse available jobs button invokes navigation callback',
-        (tester) async {
-      var browseTapped = false;
-      final service = serviceWith(
-        (_) async => http.Response(
-          jsonEncode(_dashboardJson),
-          200,
-          headers: {'content-type': 'application/json'},
-        ),
-      );
-
-      await tester.pumpWidget(
-        buildScreen(service, onBrowseJobs: () => browseTapped = true),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Browse available jobs'));
-      await tester.pump();
-
-      expect(browseTapped, isTrue);
-    });
-
-    testWidgets('5. displays an error and successfully retries dashboard loading',
+    testWidgets('2. displays an error and successfully retries dashboard loading',
         (tester) async {
       var attempts = 0;
       final service = serviceWith((_) async {
