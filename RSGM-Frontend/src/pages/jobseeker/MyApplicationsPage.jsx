@@ -143,9 +143,17 @@ function MyApplicationsPage() {
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex items-start gap-4">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-100">
-                      <Briefcase size={20} className="text-violet-600" />
-                    </div>
+                    {application.companyLogoUrl ? (
+                      <img
+                        src={application.companyLogoUrl}
+                        alt={`${application.company} logo`}
+                        className="h-11 w-11 shrink-0 rounded-2xl border border-neutral-100 bg-white object-contain p-1"
+                      />
+                    ) : (
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-100">
+                        <Briefcase size={20} className="text-violet-600" />
+                      </div>
+                    )}
 
                     <div>
                       <p className="font-semibold text-neutral-900">
