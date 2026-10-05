@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { Search } from "lucide-react";
 import {
   downloadShortlistedCandidateCv,
   getAvailableSlots,
@@ -20,6 +21,8 @@ export default function ShortlistsPage() {
   const [location, setLocation] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [shortlistSearch, setShortlistSearch] = useState("");
+  const [shortlistStatus, setShortlistStatus] = useState("all");
 
   const [candidatePreview, setCandidatePreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -66,6 +69,67 @@ export default function ShortlistsPage() {
       cancelled = true;
     };
   }, [selection, hrId]);
+
+  const statusOptions = useMemo(() => {
+    const values = new Set();
+
+    jobs.forEach((job) => {
+      (job.candidates ?? []).forEach((candidate) => {
+        if (candidate.status) {
+          values.add(candidate.status);
+        }
+      });
+    });
+
+    return Array.from(values).sort();
+  }, [jobs]);
+
+  const filteredJobs = useMemo(() => {
+    const search = shortlistSearch.trim().toLowerCase();
+
+    return jobs
+      .map((job) => {
+        const jobMatchesSearch =
+          !search ||
+          [job.jobTitle, job.recruiter].some((value) =>
+            String(value ?? "")
+              .toLowerCase()
+              .includes(search)
+          );
+
+        const candidates = (job.candidates ?? []).filter(
+          (candidate) => {
+            const matchesStatus =
+              shortlistStatus === "all" ||
+              candidate.status === shortlistStatus;
+
+            const candidateMatchesSearch =
+              !search ||
+              [
+                candidate.candidate,
+                candidate.email,
+                candidate.status,
+                candidate.shortlistRank,
+              ].some((value) =>
+                String(value ?? "")
+                  .toLowerCase()
+                  .includes(search)
+              );
+
+            return (
+              matchesStatus &&
+              (jobMatchesSearch || candidateMatchesSearch)
+            );
+          }
+        );
+
+        return {
+          ...job,
+          candidates,
+        };
+      })
+      .filter((job) => job.candidates.length > 0);
+  }, [jobs, shortlistSearch, shortlistStatus]);
 
   async function openCandidate(candidate) {
     setPreviewLoading(true);
@@ -153,7 +217,56 @@ export default function ShortlistsPage() {
       >
         View your schedule →
       </Link>
-      
+      <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_220px]">
+        <label className="relative block">
+          <span className="sr-only">
+            Search shortlisted candidates
+          </span>
+
+          <Search
+            size={17}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"
+          />
+
+          <input
+            type="search"
+            value={shortlistSearch}
+            onChange={(e) =>
+              setShortlistSearch(e.target.value)
+            }
+            placeholder="Search candidate or job..."
+            className="w-full rounded-xl border border-neutral-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+          />
+        </label>
+
+        <label>
+          <span className="sr-only">
+            Filter by candidate status
+          </span>
+
+          <select
+            value={shortlistStatus}
+            onChange={(e) =>
+              setShortlistStatus(e.target.value)
+            }
+            className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-700 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+          >
+            <option value="all">
+              All statuses
+            </option>
+
+            {statusOptions.map((status) => (
+              <option
+                key={status}
+                value={status}
+              >
+                {status}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       {error && (
         <p
           role="alert"
@@ -170,7 +283,19 @@ export default function ShortlistsPage() {
           </p>
         )}
 
-        {jobs.map((job) => (
+        {jobs.length > 0 && filteredJobs.length === 0 && (
+          <div className="rounded-2xl border border-neutral-200 bg-white p-5">
+            <p className="font-medium text-neutral-700">
+              No shortlisted candidates found
+            </p>
+
+            <p className="mt-1 text-sm text-neutral-500">
+              Try changing your search or status filter.
+            </p>
+          </div>
+        )}
+
+        {filteredJobs.map((job) => (
           <section
             key={job.jobPostingId}
             className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"
