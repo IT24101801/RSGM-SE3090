@@ -4,6 +4,8 @@ import '../theme/app_theme.dart';
 import '../widgets/rsgm_widgets.dart';
 import 'recruiter/recruiter_main_screen.dart';
 import 'jobseeker/jobseeker_main_screen.dart';
+import 'panelist/panelist_main_screen.dart';
+import 'hr/hr_main_screen.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -49,12 +51,30 @@ class _LoginPageState extends State<LoginPage> {
       if (rolesList.contains('Recruiter')) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const RecruiterMainScreen()),
+          MaterialPageRoute(
+            builder: (_) => const RecruiterMainScreen(),
+          ),
         );
       } else if (rolesList.contains('JobSeeker')) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const JobSeekerMainScreen()),
+          MaterialPageRoute(
+            builder: (_) => const JobSeekerMainScreen(),
+          ),
+        );
+      } else if (rolesList.contains('HiringPanelist')) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const PanelistMainScreen(),
+          ),
+        );
+      } else if (rolesList.contains('HRManager')) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const HrMainScreen(),
+          ),
         );
       }
     } on AuthException catch (e) {

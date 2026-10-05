@@ -35,7 +35,7 @@ public class InterviewAvailabilityServiceTests
             configuration);
     }
 
-    private static DateTimeOffset NextWeekdayAt(int hour)
+    private static DateTimeOffset NextWeekdayAt(int hour, int minute = 0)
     {
         var zone =
             TimeZoneInfo.FindSystemTimeZoneById(
@@ -57,7 +57,7 @@ public class InterviewAvailabilityServiceTests
 
         var local =
             DateTime.SpecifyKind(
-                date.AddHours(hour),
+                date.AddHours(hour).AddMinutes(minute),
                 DateTimeKind.Unspecified);
 
         return new DateTimeOffset(
@@ -84,11 +84,37 @@ public class InterviewAvailabilityServiceTests
         using var db = CreateDb();
         var service = CreateService(db);
 
-        var time = NextWeekdayAt(8);
+        var time = NextWeekdayAt(7);
 
         var result = service.IsAllowed(time);
 
         Assert.False(result);
+    }
+
+    [Fact]
+    public void IsAllowed_AtOfficeStart_ReturnsTrue()
+    {
+        using var db = CreateDb();
+        var service = CreateService(db);
+
+        var time = NextWeekdayAt(8);
+
+        var result = service.IsAllowed(time);
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void IsAllowed_WithinOfficeHoursWithMinutes_ReturnsTrue()
+    {
+        using var db = CreateDb();
+        var service = CreateService(db);
+
+        var time = NextWeekdayAt(8, 15);
+
+        var result = service.IsAllowed(time);
+
+        Assert.True(result);
     }
 
     [Fact]

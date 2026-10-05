@@ -1,27 +1,27 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../models/recruiter/recruiter_busy_time.dart';
+import '../../models/panelist/panelist_busy_time.dart';
 import '../../services/api_client.dart';
-import '../../services/recruiter/recruiter_availability_service.dart';
+import '../../services/panelist/panelist_availability_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/rsgm_widgets.dart';
 
-/// Screen for viewing, adding, and deleting recruiter availability / busy times.
-class RecruiterAvailabilityScreen extends StatefulWidget {
-  const RecruiterAvailabilityScreen({super.key, this.service});
+/// Screen for viewing, adding, and deleting hiring panelist availability / busy times.
+class PanelistAvailabilityScreen extends StatefulWidget {
+  const PanelistAvailabilityScreen({super.key, this.service});
 
-  final RecruiterAvailabilityService? service;
+  final PanelistAvailabilityService? service;
 
   @override
-  State<RecruiterAvailabilityScreen> createState() =>
-      _RecruiterAvailabilityScreenState();
+  State<PanelistAvailabilityScreen> createState() =>
+      _PanelistAvailabilityScreenState();
 }
 
-class _RecruiterAvailabilityScreenState
-    extends State<RecruiterAvailabilityScreen> {
-  late final RecruiterAvailabilityService _service;
+class _PanelistAvailabilityScreenState
+    extends State<PanelistAvailabilityScreen> {
+  late final PanelistAvailabilityService _service;
 
-  List<RecruiterBusyTime> _busyTimes = [];
+  List<PanelistBusyTime> _busyTimes = [];
   bool _isLoading = true;
   String? _error;
   String? _deletingId;
@@ -29,7 +29,7 @@ class _RecruiterAvailabilityScreenState
   @override
   void initState() {
     super.initState();
-    _service = widget.service ?? RecruiterAvailabilityService();
+    _service = widget.service ?? PanelistAvailabilityService();
     _loadBusyTimes();
   }
 
@@ -64,7 +64,7 @@ class _RecruiterAvailabilityScreenState
     }
   }
 
-  Future<void> _confirmDelete(RecruiterBusyTime busyTime) async {
+  Future<void> _confirmDelete(PanelistBusyTime busyTime) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -137,14 +137,14 @@ class _RecruiterAvailabilityScreenState
       child: SafeArea(
         child: RefreshIndicator(
           onRefresh: _loadBusyTimes,
-          color: AppTheme.violet,
+          color: Color(0xFFD97706),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const InfoPill(text: 'RECRUITER SCHEDULE'),
+                const InfoPill(text: 'HIRING PANELIST SCHEDULE'),
                 const SizedBox(height: 14),
                 Text(
                   'Availability',
@@ -152,7 +152,7 @@ class _RecruiterAvailabilityScreenState
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Manage the times when you are unavailable for interviews or recruiting activities.',
+                  'Manage the times when you are unavailable for interviews or panel activities.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 20),
@@ -192,7 +192,7 @@ class _RecruiterAvailabilityScreenState
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 60),
         child: Center(
-          child: CircularProgressIndicator(color: AppTheme.violet),
+          child: CircularProgressIndicator(color: Color(0xFFD97706)),
         ),
       );
     }
@@ -260,13 +260,13 @@ class _RecruiterAvailabilityScreenState
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F3FF),
+                color: const Color(0xFFFFFBEB),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFDDD6FE)),
+                border: Border.all(color: const Color(0xFFFDE68A)),
               ),
               child: const Icon(
                 Icons.event_available_rounded,
-                color: AppTheme.violet,
+                color: Color(0xFFD97706),
                 size: 32,
               ),
             ),
@@ -327,7 +327,7 @@ class _BusyTimeCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  final RecruiterBusyTime busyTime;
+  final PanelistBusyTime busyTime;
   final bool isDeleting;
   final VoidCallback onDelete;
 
@@ -338,7 +338,7 @@ class _BusyTimeCard extends StatelessWidget {
 
     final dateStr = DateFormat('EEEE, d MMMM yyyy').format(localStart);
     final timeStr =
-        '${DateFormat('hh:mm a').format(localStart)} – ${DateFormat('hh:mm a').format(localEnd)}';
+        '${DateFormat('hh:mm a').format(localStart)} - ${DateFormat('hh:mm a').format(localEnd)}';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -365,13 +365,13 @@ class _BusyTimeCard extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF5F3FF),
+                  color: const Color(0xFFFFFBEB),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFDDD6FE)),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
                 ),
                 child: const Icon(
                   Icons.event_busy_rounded,
-                  color: AppTheme.violet,
+                  color: Color(0xFFD97706),
                   size: 20,
                 ),
               ),
@@ -414,7 +414,7 @@ class _BusyTimeCard extends StatelessWidget {
                         const Icon(
                           Icons.access_time_rounded,
                           size: 13,
-                          color: AppTheme.violet,
+                          color: Color(0xFFD97706),
                         ),
                         const SizedBox(width: 5),
                         Text(
@@ -505,7 +505,7 @@ class _BusyTimeCard extends StatelessWidget {
 class _AddBusyTimeSheet extends StatefulWidget {
   const _AddBusyTimeSheet({required this.service});
 
-  final RecruiterAvailabilityService service;
+  final PanelistAvailabilityService service;
 
   @override
   State<_AddBusyTimeSheet> createState() => _AddBusyTimeSheetState();
@@ -844,7 +844,7 @@ class _AddBusyTimeSheetState extends State<_AddBusyTimeSheet> {
                   child: Row(
                     children: [
                       const Icon(Icons.calendar_today_rounded,
-                          size: 18, color: AppTheme.violet),
+                          size: 18, color: Color(0xFFD97706)),
                       const SizedBox(width: 10),
                       Text(
                         dateDisplay,
@@ -891,7 +891,7 @@ class _AddBusyTimeSheetState extends State<_AddBusyTimeSheet> {
                             child: Row(
                               children: [
                                 const Icon(Icons.access_time_rounded,
-                                    size: 16, color: AppTheme.violet),
+                                    size: 16, color: Color(0xFFD97706)),
                                 const SizedBox(width: 8),
                                 Text(
                                   _startTime.format(context),
@@ -936,7 +936,7 @@ class _AddBusyTimeSheetState extends State<_AddBusyTimeSheet> {
                             child: Row(
                               children: [
                                 const Icon(Icons.access_time_rounded,
-                                    size: 16, color: AppTheme.violet),
+                                    size: 16, color: Color(0xFFD97706)),
                                 const SizedBox(width: 8),
                                 Text(
                                   _endTime.format(context),
@@ -1050,3 +1050,6 @@ class _AddBusyTimeSheetState extends State<_AddBusyTimeSheet> {
     );
   }
 }
+
+
+

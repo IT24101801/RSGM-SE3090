@@ -12,7 +12,6 @@ import AdminCompaniesPage from "../pages/admin/AdminCompaniesPage";
 import AdminAuditLogsPage from "../pages/admin/AdminAuditLogsPage";
 import AdminWorkflowsPage from "../pages/admin/AdminWorkflowsPage";
 import AdminStatsPage from "../pages/admin/AdminStatsPage";
-import AdminSettingsPage from "../pages/admin/AdminSettingsPage";
 
 import RecruiterLayout from "../layouts/RecruiterLayout";
 import RecruiterDashboardPage from "../pages/recruiter/RecruiterDashboardPage";
@@ -75,7 +74,6 @@ function AppRoutes() {
         <Route path="audit-logs" element={<AdminAuditLogsPage />} />
         <Route path="workflows" element={<AdminWorkflowsPage />} />
         <Route path="stats" element={<AdminStatsPage />} />
-        <Route path="settings" element={<AdminSettingsPage />} />
         <Route path="notifications" element={<NotificationsPage role="admin" />} />
       </Route>
 

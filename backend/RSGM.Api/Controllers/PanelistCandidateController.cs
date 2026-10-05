@@ -33,8 +33,10 @@ public class PanelistCandidateController : ControllerBase
             : Guid.Empty;
 
     private IQueryable<Application> AccessibleApplications =>
-    _db.Applications.Where(application =>
-        application.Status == ApplicationStatus.Shortlisted &&
+        _db.Applications.Where(application =>
+            (application.Status == ApplicationStatus.Shortlisted ||
+             application.Status == ApplicationStatus.Interview ||
+             application.Status == ApplicationStatus.Offer) &&
         application.JobPosting.CompanyId != null &&
         application.JobPosting.CompanyEntity != null &&
         application.JobPosting.CompanyEntity.IsActive &&
@@ -64,7 +66,7 @@ public class PanelistCandidateController : ControllerBase
             return NotFound(new
             {
                 message =
-                    "This shortlisted candidate is not available to you."
+                    "This candidate is not available to you."
             });
         }
 
@@ -183,7 +185,7 @@ public class PanelistCandidateController : ControllerBase
             return NotFound(new
             {
                 message =
-                    "This shortlisted candidate is not available to you."
+                    "This candidate is not available to you."
             });
         }
 

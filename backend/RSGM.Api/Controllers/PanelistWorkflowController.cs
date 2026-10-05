@@ -64,7 +64,7 @@ public class PanelistWorkflowController : ControllerBase
             localStart.Date == localEnd.Date &&
             localStart.DayOfWeek is not
                 (DayOfWeek.Saturday or DayOfWeek.Sunday) &&
-            localStart.TimeOfDay >= TimeSpan.FromHours(9) &&
+            localStart.TimeOfDay >= TimeSpan.FromHours(8) &&
             localEnd.TimeOfDay <= TimeSpan.FromHours(17);
     }
 
@@ -239,7 +239,7 @@ public class PanelistWorkflowController : ControllerBase
             return BadRequest(new
             {
                 message =
-                    "Busy times must be future weekday periods within 9:00 AM–5:00 PM."
+                    "Busy times must be future weekday periods within 8:00 AM–5:00 PM."
             });
         }
 
