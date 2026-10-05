@@ -9,6 +9,7 @@ import '../home_page.dart';
 import 'hr_analytics_screen.dart';
 import 'hr_dashboard_screen.dart';
 import 'hr_requisitions_screen.dart';
+import 'hr_schedule_screen.dart';
 import 'hr_workflows_screen.dart';
 
 class HrMainScreen extends StatefulWidget {
@@ -118,6 +119,7 @@ class _HrMainScreenState extends State<HrMainScreen> {
           HrDashboardScreen(service: _service),
           HrRequisitionsScreen(service: _service),
           HrWorkflowsScreen(service: _service),
+          const HrScheduleScreen(),
           HrAnalyticsScreen(service: _service),
         ],
       ),
@@ -144,6 +146,11 @@ class _HrMainScreenState extends State<HrMainScreen> {
             icon: Icon(Icons.account_tree_outlined),
             activeIcon: Icon(Icons.account_tree_rounded),
             label: 'Workflows',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_month_outlined),
+            activeIcon: Icon(Icons.calendar_month_rounded),
+            label: 'Schedule',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.bar_chart_outlined),

@@ -517,7 +517,7 @@ class _AddBusyTimeSheetState extends State<_AddBusyTimeSheet> {
   final _descController = TextEditingController();
 
   late DateTime _selectedDate;
-  TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
+  TimeOfDay _startTime = const TimeOfDay(hour: 8, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 11, minute: 0);
 
   bool _isSubmitting = false;
@@ -561,11 +561,90 @@ class _AddBusyTimeSheetState extends State<_AddBusyTimeSheet> {
     }
   }
 
-  Future<void> _pickStartTime() async {
-    final picked = await showTimePicker(
+  List<TimeOfDay> _allowedTimes({required bool forStart}) {
+    final values = <TimeOfDay>[];
+    final first = forStart ? 8 * 60 : 8 * 60 + 30;
+    final last = forStart ? 16 * 60 + 30 : 17 * 60;
+    for (var minutes = first; minutes <= last; minutes += 30) {
+      values.add(TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60));
+    }
+    return values;
+  }
+
+  Future<TimeOfDay?> _showAllowedTimePicker({
+    required String title,
+    required bool forStart,
+    required TimeOfDay selected,
+  }) async {
+    return showModalBottomSheet<TimeOfDay>(
       context: context,
-      initialTime: _startTime,
-      helpText: 'SELECT START TIME (9:00 AM - 5:00 PM)',
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: SizedBox(
+          height: 430,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.ink,
+                    ),
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Choose a time between 8:00 AM and 5:00 PM.',
+                    style: TextStyle(fontSize: 13, color: AppTheme.muted),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView(
+                  children: _allowedTimes(forStart: forStart).map((time) {
+                    final isSelected =
+                        time.hour == selected.hour && time.minute == selected.minute;
+                    return ListTile(
+                      leading: Icon(
+                        isSelected
+                            ? Icons.radio_button_checked_rounded
+                            : Icons.radio_button_off_rounded,
+                        color: isSelected ? const Color(0xFFD97706) : AppTheme.muted,
+                      ),
+                      title: Text(
+                        time.format(ctx),
+                        style: TextStyle(
+                          fontWeight:
+                              isSelected ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                      ),
+                      onTap: () => Navigator.pop(ctx, time),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickStartTime() async {
+    final picked = await _showAllowedTimePicker(
+      title: 'Select start time',
+      forStart: true,
+      selected: _startTime,
     );
 
     if (picked != null) {
@@ -577,10 +656,10 @@ class _AddBusyTimeSheetState extends State<_AddBusyTimeSheet> {
   }
 
   Future<void> _pickEndTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _endTime,
-      helpText: 'SELECT END TIME (AFTER START TIME)',
+    final picked = await _showAllowedTimePicker(
+      title: 'Select end time',
+      forStart: false,
+      selected: _endTime,
     );
 
     if (picked != null) {
