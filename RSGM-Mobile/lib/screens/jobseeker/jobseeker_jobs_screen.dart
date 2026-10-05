@@ -19,6 +19,7 @@ class JobSeekerJobsScreen extends StatefulWidget {
 
 class _JobSeekerJobsScreenState extends State<JobSeekerJobsScreen> {
   List<JobSeekerJob> jobs = [];
+  Map<String, JobSeekerApplication> applicationsByJobId = {};
   bool loading = true;
   String? error;
   String query = '';
@@ -34,11 +35,16 @@ class _JobSeekerJobsScreenState extends State<JobSeekerJobsScreen> {
 
     try {
       final result = await widget.service.getJobs();
+      final applications = await widget.service.getApplications();
 
       if (!mounted) return;
 
       setState(() {
         jobs = result;
+        applicationsByJobId = {
+          for (final application in applications)
+            application.jobPostingId: application,
+        };
         error = null;
       });
     } on ApiException catch (e) {
@@ -128,6 +134,7 @@ class _JobSeekerJobsScreenState extends State<JobSeekerJobsScreen> {
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
           final job = shownJobs[index];
+          final application = applicationsByJobId[job.id];
 
           return Card(
             child: ListTile(
@@ -151,6 +158,10 @@ class _JobSeekerJobsScreenState extends State<JobSeekerJobsScreen> {
                         color: AppTheme.muted,
                       ),
                     ),
+                    if (application != null) ...[
+                      const SizedBox(height: 8),
+                      _ApplicationStatusChip(status: application.status),
+                    ],
                     if (job.requiredSkills.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
@@ -172,16 +183,21 @@ class _JobSeekerJobsScreenState extends State<JobSeekerJobsScreen> {
                 ),
               ),
               trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () {
-                Navigator.push(
+              onTap: () async {
+                await Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => JobSeekerJobDetailScreen(
                       job: job,
                       service: widget.service,
+                      currentApplication: application,
                     ),
                   ),
                 );
+
+                if (mounted) {
+                  await _load();
+                }
               },
             ),
           );
@@ -196,10 +212,12 @@ class JobSeekerJobDetailScreen extends StatefulWidget {
     super.key,
     required this.job,
     required this.service,
+    this.currentApplication,
   });
 
   final JobSeekerJob job;
   final JobSeekerService service;
+  final JobSeekerApplication? currentApplication;
 
   @override
   State<JobSeekerJobDetailScreen> createState() =>
@@ -209,14 +227,23 @@ class JobSeekerJobDetailScreen extends StatefulWidget {
 class _JobSeekerJobDetailScreenState
     extends State<JobSeekerJobDetailScreen> {
   bool applying = false;
+  JobSeekerApplication? application;
+
+  @override
+  void initState() {
+    super.initState();
+    application = widget.currentApplication;
+  }
 
   Future<void> _apply() async {
     setState(() => applying = true);
 
     try {
-      await widget.service.apply(widget.job.id);
+      final createdApplication = await widget.service.apply(widget.job.id);
 
       if (!mounted) return;
+
+      setState(() => application = createdApplication);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -316,22 +343,92 @@ class _JobSeekerJobDetailScreenState
             ),
           ],
           const SizedBox(height: 22),
-          FilledButton.icon(
-            onPressed: applying ? null : _apply,
-            icon: applying
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                    ),
-                  )
-                : const Icon(Icons.send_rounded),
-            label: Text(
-              applying ? 'Applying...' : 'Apply now',
+          if (application == null)
+            FilledButton.icon(
+              onPressed: applying ? null : _apply,
+              icon: applying
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.send_rounded),
+              label: Text(
+                applying ? 'Applying...' : 'Apply now',
+              ),
+            )
+          else
+            _ExistingApplicationBanner(application: application!),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _ExistingApplicationBanner extends StatelessWidget {
+  const _ExistingApplicationBanner({required this.application});
+
+  final JobSeekerApplication application;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = application.status.trim().isEmpty
+        ? 'Applied'
+        : application.status.trim();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            status.toLowerCase() == 'withdrawn'
+                ? Icons.undo_rounded
+                : Icons.check_circle_outline_rounded,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              status,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ApplicationStatusChip extends StatelessWidget {
+  const _ApplicationStatusChip({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = status.trim().isEmpty ? 'Applied' : status.trim();
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Chip(
+        avatar: Icon(
+          label.toLowerCase() == 'withdrawn'
+              ? Icons.undo_rounded
+              : Icons.check_circle_outline_rounded,
+          size: 17,
+        ),
+        label: Text(label),
+        visualDensity: VisualDensity.compact,
       ),
     );
   }
