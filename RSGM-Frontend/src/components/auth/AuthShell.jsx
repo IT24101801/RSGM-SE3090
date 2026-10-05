@@ -222,7 +222,7 @@ function AuthShell({
 
                   <div>
                     <p className="text-xs text-neutral-400">
-                      RSGM PLATFORM
+                      HIREON PLATFORM
                     </p>
 
                     <p className="mt-1 text-sm font-semibold">
