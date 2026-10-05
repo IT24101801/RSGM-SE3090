@@ -7,11 +7,15 @@ import {
   CheckCircle2,
   Loader2,
   Sparkles,
+  UsersRound,
 } from "lucide-react";
+
 import { getPanelistInterviews } from "../../services/hiringWorkflowService";
+import { getPanelistShortlists } from "../../services/panelistWorkflowService";
 
 function PanelistDashboardPage() {
   const [interviews, setInterviews] = useState([]);
+  const [shortlists, setShortlists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -23,14 +27,25 @@ function PanelistDashboardPage() {
         setLoading(true);
         setError("");
 
-        const data = await getPanelistInterviews();
+        const [interviewData, shortlistData] = await Promise.all([
+          getPanelistInterviews(),
+          getPanelistShortlists(),
+        ]);
 
         if (!cancelled) {
-          setInterviews(Array.isArray(data) ? data : []);
+          setInterviews(
+            Array.isArray(interviewData) ? interviewData : []
+          );
+
+          setShortlists(
+            Array.isArray(shortlistData) ? shortlistData : []
+          );
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err.message || "Unable to load dashboard details.");
+          setError(
+            err.message || "Unable to load dashboard details."
+          );
         }
       } finally {
         if (!cancelled) {
@@ -62,19 +77,21 @@ function PanelistDashboardPage() {
       })
       .sort(
         (a, b) =>
-          new Date(a.scheduledAt) - new Date(b.scheduledAt),
+          new Date(a.scheduledAt) -
+          new Date(b.scheduledAt)
       );
 
     const feedbackSubmitted = interviews.filter(
-      (interview) => Boolean(interview.feedback),
+      (interview) => Boolean(interview.feedback)
     ).length;
 
     return {
       upcomingCount: upcoming.length,
       feedbackSubmitted,
+      assignedShortlists: shortlists.length,
       nextInterview: upcoming[0] ?? null,
     };
-  }, [interviews]);
+  }, [interviews, shortlists]);
 
   const stats = [
     {
@@ -88,6 +105,12 @@ function PanelistDashboardPage() {
       label: "Feedback submitted",
       value: dashboardData.feedbackSubmitted,
       to: "/panelist/interviews",
+    },
+    {
+      icon: UsersRound,
+      label: "Assigned shortlists",
+      value: dashboardData.assignedShortlists,
+      to: "/panelist/shortlists",
     },
   ];
 
@@ -103,14 +126,14 @@ function PanelistDashboardPage() {
       </h1>
 
       <p className="mt-2 text-neutral-500">
-        Review candidates and submit structured feedback for your assigned
-        interviews.
+        Review candidates and submit structured feedback for your
+        assigned interviews.
       </p>
 
       {error && (
         <p
           role="alert"
-          className="mt-6 flex max-w-xl items-center gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700"
+          className="mt-6 flex max-w-4xl items-center gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700"
         >
           <AlertCircle size={16} />
           {error}
@@ -119,12 +142,15 @@ function PanelistDashboardPage() {
 
       {loading ? (
         <div className="mt-8 flex items-center gap-2 text-sm text-neutral-500">
-          <Loader2 size={17} className="animate-spin" />
+          <Loader2
+            size={17}
+            className="animate-spin"
+          />
           Loading dashboard...
         </div>
       ) : (
         <>
-          <div className="mt-8 grid max-w-xl gap-5 sm:grid-cols-2">
+          <div className="mt-8 grid max-w-4xl gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {stats.map((stat) => (
               <Link
                 key={stat.label}
@@ -156,7 +182,7 @@ function PanelistDashboardPage() {
             ))}
           </div>
 
-          <div className="mt-8 max-w-xl rounded-2xl border border-white/70 bg-white/75 p-6 shadow-xl shadow-neutral-200/30 backdrop-blur-2xl">
+          <div className="mt-8 max-w-4xl rounded-2xl border border-white/70 bg-white/75 p-6 shadow-xl shadow-neutral-200/30 backdrop-blur-2xl">
             <h2 className="text-lg font-semibold tracking-tight">
               Next up
             </h2>
@@ -173,7 +199,7 @@ function PanelistDashboardPage() {
 
                 <p className="mt-1 text-xs text-neutral-500">
                   {new Date(
-                    dashboardData.nextInterview.scheduledAt,
+                    dashboardData.nextInterview.scheduledAt
                   ).toLocaleString()}
                 </p>
               </div>
