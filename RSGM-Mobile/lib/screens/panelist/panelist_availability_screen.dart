@@ -338,7 +338,7 @@ class _BusyTimeCard extends StatelessWidget {
 
     final dateStr = DateFormat('EEEE, d MMMM yyyy').format(localStart);
     final timeStr =
-        '${DateFormat('hh:mm a').format(localStart)} â€“ ${DateFormat('hh:mm a').format(localEnd)}';
+        '${DateFormat('hh:mm a').format(localStart)} -“ ${DateFormat('hh:mm a').format(localEnd)}';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
