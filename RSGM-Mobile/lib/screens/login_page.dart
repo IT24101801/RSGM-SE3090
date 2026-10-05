@@ -5,6 +5,7 @@ import '../widgets/rsgm_widgets.dart';
 import 'recruiter/recruiter_main_screen.dart';
 import 'jobseeker/jobseeker_main_screen.dart';
 import 'panelist/panelist_main_screen.dart';
+import 'hr/hr_main_screen.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -68,7 +69,14 @@ class _LoginPageState extends State<LoginPage> {
             builder: (_) => const PanelistMainScreen(),
           ),
         );
-    }
+      } else if (rolesList.contains('HRManager')) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const HrMainScreen(),
+          ),
+        );
+      }
     } on AuthException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
