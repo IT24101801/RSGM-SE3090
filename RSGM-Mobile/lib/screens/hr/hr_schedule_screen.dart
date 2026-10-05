@@ -320,10 +320,43 @@ class _AddHrBusyTimeSheetState extends State<_AddHrBusyTimeSheet> {
     super.dispose();
   }
 
-  List<int> _times({required bool start}) {
-    final first = start ? 8 * 60 : 8 * 60 + 30;
-    final last = start ? 16 * 60 + 30 : 17 * 60;
-    return [for (var m = first; m <= last; m += 30) m];
+  bool _isWithinOfficeHours(int minutes) =>
+      minutes >= 8 * 60 && minutes <= 17 * 60;
+
+  Future<void> _pickTime({required bool start}) async {
+    final currentMinutes = start ? _startMinutes : _endMinutes;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: currentMinutes ~/ 60,
+        minute: currentMinutes % 60,
+      ),
+      helpText: start ? 'Select start time' : 'Select end time',
+    );
+
+    if (picked == null) return;
+
+    final minutes = picked.hour * 60 + picked.minute;
+    if (!_isWithinOfficeHours(minutes) || (start && minutes >= 17 * 60)) {
+      setState(() {
+        _error = start
+            ? 'Start time must be between 8:00 AM and 4:59 PM.'
+            : 'End time must be between 8:00 AM and 5:00 PM.';
+      });
+      return;
+    }
+
+    setState(() {
+      if (start) {
+        _startMinutes = minutes;
+        if (_endMinutes <= _startMinutes) {
+          _endMinutes = (_startMinutes + 60).clamp(8 * 60, 17 * 60).toInt();
+        }
+      } else {
+        _endMinutes = minutes;
+      }
+      _error = null;
+    });
   }
 
   String _formatMinutes(int minutes) {
@@ -355,6 +388,12 @@ class _AddHrBusyTimeSheetState extends State<_AddHrBusyTimeSheet> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    if (!_isWithinOfficeHours(_startMinutes) ||
+        !_isWithinOfficeHours(_endMinutes)) {
+      setState(() =>
+          _error = 'Times must be between 8:00 AM and 5:00 PM.');
+      return;
+    }
     if (_endMinutes <= _startMinutes) {
       setState(() => _error = 'End time must be after the start time.');
       return;
@@ -414,13 +453,6 @@ class _AddHrBusyTimeSheetState extends State<_AddHrBusyTimeSheet> {
   @override
   Widget build(BuildContext context) {
     final inset = MediaQuery.of(context).viewInsets.bottom;
-    final validEndTimes = _times(start: false)
-        .where((time) => time > _startMinutes)
-        .toList();
-    if (!validEndTimes.contains(_endMinutes)) {
-      _endMinutes = validEndTimes.first;
-    }
-
     return Container(
       padding: EdgeInsets.fromLTRB(20, 18, 20, 24 + inset),
       decoration: const BoxDecoration(
@@ -470,41 +502,30 @@ class _AddHrBusyTimeSheetState extends State<_AddHrBusyTimeSheet> {
               Row(
                 children: [
                   Expanded(
-                    child: DropdownButtonFormField<int>(
-                      value: _startMinutes,
-                      decoration: const InputDecoration(labelText: 'Start time'),
-                      items: _times(start: true)
-                          .map((time) => DropdownMenuItem(
-                                value: time,
-                                child: Text(_formatMinutes(time)),
-                              ))
-                          .toList(),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setState(() {
-                          _startMinutes = value;
-                          if (_endMinutes <= value) {
-                            _endMinutes = value + 30;
-                          }
-                          _error = null;
-                        });
-                      },
+                    child: InkWell(
+                      onTap: () => _pickTime(start: true),
+                      borderRadius: BorderRadius.circular(16),
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Start time',
+                          prefixIcon: Icon(Icons.access_time_rounded),
+                        ),
+                        child: Text(_formatMinutes(_startMinutes)),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: DropdownButtonFormField<int>(
-                      value: _endMinutes,
-                      decoration: const InputDecoration(labelText: 'End time'),
-                      items: validEndTimes
-                          .map((time) => DropdownMenuItem(
-                                value: time,
-                                child: Text(_formatMinutes(time)),
-                              ))
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null) setState(() => _endMinutes = value);
-                      },
+                    child: InkWell(
+                      onTap: () => _pickTime(start: false),
+                      borderRadius: BorderRadius.circular(16),
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'End time',
+                          prefixIcon: Icon(Icons.access_time_rounded),
+                        ),
+                        child: Text(_formatMinutes(_endMinutes)),
+                      ),
                     ),
                   ),
                 ],

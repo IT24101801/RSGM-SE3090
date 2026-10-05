@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CalendarClock, Trash2 } from "lucide-react";
 import {
   addBusyTime,
@@ -18,21 +18,6 @@ const pad = (value) => String(value).padStart(2, "0");
 
 function localDateValue(date = new Date()) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function timeOptions(fromMinutes, toMinutes) {
-  const values = [];
-  for (let minutes = fromMinutes; minutes <= toMinutes; minutes += 30) {
-    values.push(`${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`);
-  }
-  return values;
-}
-
-function displayTime(value) {
-  const [hour, minute] = value.split(":").map(Number);
-  const suffix = hour >= 12 ? "PM" : "AM";
-  const hour12 = hour % 12 || 12;
-  return `${hour12}:${pad(minute)} ${suffix}`;
 }
 
 function minutesFromTime(value) {
@@ -73,8 +58,6 @@ export default function AvailabilityPage() {
         : "bg-blue-600";
 
   const today = localDateValue();
-  const startOptions = useMemo(() => timeOptions(8 * 60, 16 * 60 + 30), []);
-  const endOptions = useMemo(() => timeOptions(8 * 60 + 30, 17 * 60), []);
 
   const refresh = useCallback(
     () =>
@@ -151,13 +134,7 @@ export default function AvailabilityPage() {
       [key]: e.target.value,
     }));
 
-  const isPastTimeToday = (time) => {
-    if (form.date !== today) return false;
-    const now = new Date();
-    const optionMinutes = minutesFromTime(time);
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    return optionMinutes <= nowMinutes;
-  };
+
 
   return (
     <div className="space-y-6">
@@ -212,42 +189,34 @@ export default function AvailabilityPage() {
 
           <label className="text-sm font-medium">
             Start time
-            <select
+            <input
+              type="time"
               required
+              min="08:00"
+              max="16:59"
+              step="60"
               value={form.startTime}
               onChange={update("startTime")}
               className="mt-2 block w-full rounded-xl border border-neutral-200 px-3 py-2.5"
-            >
-              {startOptions.map((time) => (
-                <option key={time} value={time} disabled={isPastTimeToday(time)}>
-                  {displayTime(time)}
-                </option>
-              ))}
-            </select>
+            />
           </label>
 
           <label className="text-sm font-medium">
             End time
-            <select
+            <input
+              type="time"
               required
+              min="08:00"
+              max="17:00"
+              step="60"
               value={form.endTime}
               onChange={update("endTime")}
               className="mt-2 block w-full rounded-xl border border-neutral-200 px-3 py-2.5"
-            >
-              {endOptions.map((time) => (
-                <option
-                  key={time}
-                  value={time}
-                  disabled={minutesFromTime(time) <= minutesFromTime(form.startTime)}
-                >
-                  {displayTime(time)}
-                </option>
-              ))}
-            </select>
+            />
           </label>
 
           <p className="text-xs text-neutral-500 sm:col-span-2">
-            Available scheduling window: Monday-Friday, 8:00 AM-5:00 PM. Times are shown in 30-minute steps.
+            Available scheduling window: Monday-Friday, 8:00 AM-5:00 PM. You can choose any minute within this window, for example 8:15 AM to 9:15 AM.
           </p>
 
           <label className="text-sm font-medium sm:col-span-2">
