@@ -36,6 +36,8 @@ public class JobSeekerApplicationService
             .AsNoTracking()
             .Where(x => x.UserId == userId)
             .Include(x => x.JobPosting)
+                .ThenInclude(jp => jp.CompanyEntity)
+            .Include(x => x.JobPosting)
                 .ThenInclude(jp => jp.RequiredSkills)
                     .ThenInclude(rs => rs.Skill)
             .OrderByDescending(x => x.AppliedAt)
@@ -238,6 +240,7 @@ public class JobSeekerApplicationService
             JobPostingId = application.JobPostingId,
             JobTitle = application.JobPosting.Title,
             Company = application.JobPosting.Company,
+            CompanyLogoUrl = application.JobPosting.CompanyEntity?.LogoUrl,
             Status = application.Status.ToString(),
             AppliedAt = application.AppliedAt,
             MatchScore = matchScore,
