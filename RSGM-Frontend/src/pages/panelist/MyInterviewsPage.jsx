@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertCircle, CalendarClock, CheckCircle2, Download, Loader2, Search, Sparkles, Star } from "lucide-react";
+import { AlertCircle, CalendarClock, CheckCircle2, Download, Loader2, RefreshCw, Search, Sparkles, Star } from "lucide-react";
 import {
   downloadPanelistCandidateCv, getPanelistCandidate, getPanelistInterviews,
   saveInterviewFeedback,
@@ -55,6 +55,21 @@ export default function MyInterviewsPage() {
     loadInitialInterviews();
     return () => { cancelled = true; };
   }, []);
+
+  async function retryInterviews() {
+    setLoading(true);
+    setError("");
+
+    try {
+      await refresh();
+    } catch (e) {
+      setError(
+        e.message || "Unable to load your interviews."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const filteredInterviews = useMemo(() => {
     const search = interviewSearch.trim().toLowerCase();
@@ -256,7 +271,35 @@ export default function MyInterviewsPage() {
         </select>
       </label>
     </div>
-    {error && <p role="alert" className="mt-6 flex gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700"><AlertCircle size={16} />{error}</p>}
+    {error && (
+      <div
+        role="alert"
+        className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-red-50 p-4 text-sm text-red-700"
+      >
+        <div className="flex items-center gap-2">
+          <AlertCircle
+            size={17}
+            className="shrink-0"
+          />
+
+          <span>{error}</span>
+        </div>
+
+        <button
+          type="button"
+          onClick={retryInterviews}
+          disabled={loading || busy}
+          className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+        >
+          <RefreshCw
+            size={14}
+            className={loading ? "animate-spin" : ""}
+          />
+
+          {loading ? "Retrying..." : "Retry"}
+        </button>
+      </div>
+    )}
     <div className="mt-8 space-y-3">
       {loading && <p className="flex items-center gap-2 text-sm text-neutral-500"><Loader2 size={16} className="animate-spin" />Loading interviews…</p>}
       {!loading && interviews.length === 0 && (
