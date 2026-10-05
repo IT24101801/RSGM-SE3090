@@ -6,6 +6,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Loader2,
+  RefreshCw,
   Sparkles,
   UsersRound,
 } from "lucide-react";
@@ -20,13 +21,10 @@ function PanelistDashboardPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    let cancelled = false;
+   let cancelled = false;
 
-    async function loadDashboard() {
+    async function loadInitialDashboard() {
       try {
-        setLoading(true);
-        setError("");
-
         const [interviewData, shortlistData] = await Promise.all([
           getPanelistInterviews(),
           getPanelistShortlists(),
@@ -34,17 +32,22 @@ function PanelistDashboardPage() {
 
         if (!cancelled) {
           setInterviews(
-            Array.isArray(interviewData) ? interviewData : []
+            Array.isArray(interviewData)
+              ? interviewData
+              : []
           );
 
           setShortlists(
-            Array.isArray(shortlistData) ? shortlistData : []
+            Array.isArray(shortlistData)
+              ? shortlistData
+              : []
           );
         }
       } catch (err) {
         if (!cancelled) {
           setError(
-            err.message || "Unable to load dashboard details."
+            err.message ||
+              "Unable to load dashboard details."
           );
         }
       } finally {
@@ -54,12 +57,45 @@ function PanelistDashboardPage() {
       }
     }
 
-    loadDashboard();
+    loadInitialDashboard();
 
     return () => {
       cancelled = true;
     };
   }, []);
+
+  async function retryDashboard() {
+    try {
+      setLoading(true);
+      setError("");
+
+      const [interviewData, shortlistData] = await Promise.all([
+        getPanelistInterviews(),
+        getPanelistShortlists(),
+      ]);
+
+      setInterviews(
+        Array.isArray(interviewData)
+          ? interviewData
+          : []
+      );
+
+      setShortlists(
+        Array.isArray(shortlistData)
+          ? shortlistData
+          : []
+      );
+    } catch (err) {
+      setError(
+        err.message ||
+          "Unable to load dashboard details."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
 
   const dashboardData = useMemo(() => {
     const now = new Date();
@@ -131,13 +167,33 @@ function PanelistDashboardPage() {
       </p>
 
       {error && (
-        <p
+        <div
           role="alert"
-          className="mt-6 flex max-w-4xl items-center gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700"
+          className="mt-6 flex max-w-4xl flex-wrap items-center justify-between gap-3 rounded-xl bg-red-50 p-4 text-sm text-red-700"
         >
-          <AlertCircle size={16} />
-          {error}
-        </p>
+          <div className="flex items-center gap-2">
+            <AlertCircle
+              size={17}
+              className="shrink-0"
+            />
+
+            <span>{error}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={retryDashboard}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+          >
+            <RefreshCw
+              size={14}
+              className={loading ? "animate-spin" : ""}
+            />
+
+            {loading ? "Retrying..." : "Retry"}
+          </button>
+        </div>
       )}
 
       {loading ? (
